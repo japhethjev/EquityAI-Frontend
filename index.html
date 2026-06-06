@@ -1594,7 +1594,8 @@ select.form-input option{background:#ffffff}
             </div>
             <!-- Bulk actions -->
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
-              <button class="btn btn-gold btn-sm" onclick="adminRunNGXSignals()">🤖 Run All NGX Signals Now</button>
+              <button class="btn btn-gold btn-sm" onclick="adminRunNGXSignals(false)">🤖 Run All NGX Signals Now</button>
+              <button class="btn btn-ghost btn-sm" onclick="adminRunNGXSignals(true)" style="color:var(--green);border-color:var(--green)">⚡ Fill Missing / Stale</button>
               <button class="btn btn-ghost btn-sm" onclick="adminClearNGXSignals()">🗑️ Clear NGX Cache</button>
               <button class="btn btn-ghost btn-sm" onclick="adminLoadNGXStatus()">⟳ Refresh Status</button>
             </div>
@@ -2709,7 +2710,27 @@ var SIGNAL_ENGINE = {
 
       var s = (typeof ALL_STOCKS!=='undefined'&&ALL_STOCKS[idx])||STOCKS[idx];
       if (!s) { processNext(idx + 1); return; }
-      // NOTE: no onProgress here before the call — only fire once we have a result
+
+      // SKIP if stock already has a FRESH signal (generated today) and skipExisting mode is on
+      if (opts.skipExisting && SIGNAL_ENGINE.signals[s.t] && SIGNAL_ENGINE.signals[s.t].signal) {
+        var _sig      = SIGNAL_ENGINE.signals[s.t];
+        var _sigDate  = _sig.updatedAt ? new Date(_sig.updatedAt) : null;
+        var _today    = new Date();
+        // "Fresh" = generated on the same calendar day (WAT = UTC+1)
+        var _sigDay   = _sigDate ? _sigDate.toISOString().slice(0,10) : null;
+        var _todayDay = new Date(_today.getTime() + 60*60*1000).toISOString().slice(0,10); // UTC+1 approx
+        var _isFresh  = (_sigDay === _todayDay);
+        if (_isFresh) {
+          // Signal is from today — skip it
+          completed++;
+          onProgress({ idx: idx, ticker: s.t, signal: _sig.signal,
+                       skipped: true, completed: completed, total: total });
+          processNext(idx + 1); // no API call, no delay
+          return;
+        }
+        // Signal exists but is stale (from a previous day) — fall through and regenerate
+        console.log('[SignalEngine] Stale signal for ' + s.t + ' (' + _sigDay + ') — regenerating');
+      }
 
       SIGNAL_ENGINE.callClaude(idx)
         .then(function(result) {
@@ -8974,26 +8995,49 @@ function _sigLog(market, msg, type) {
   el.innerHTML = '<span style="color:'+col+'">'+ts+' — '+msg+'</span><br>' + el.innerHTML;
 }
 
-function adminRunNGXSignals() {
+function adminRunNGXSignals(missingOnly) {
   var hasKey = CONFIG.ANTHROPIC_API_KEY && CONFIG.ANTHROPIC_API_KEY.indexOf('REPLACE')<0 && CONFIG.ANTHROPIC_API_KEY.length>20;
   var hasServer = SIGNAL_ENGINE.SERVER_URL && SIGNAL_ENGINE.SERVER_URL.length>5;
   if (!hasKey && !hasServer) { toast('Configure ANTHROPIC_API_KEY or SERVER_URL first','error'); return; }
-  toast('Running AI signals for all 146 NGX stocks... This takes a few minutes.','info');
-  _sigLog('NGX','Starting full NGX signal run (146 stocks)...','info');
+
+  // Count how many are missing
+  var missing = STOCKS.filter(function(s){ return !SIGNAL_ENGINE.signals[s.t]; });
+  var runCount = missingOnly ? missing.length : STOCKS.length;
+  // Count stale signals (not generated today)
+  var _todayDay = new Date(Date.now() + 60*60*1000).toISOString().slice(0,10);
+  var stale = STOCKS.filter(function(s){
+    var sig = SIGNAL_ENGINE.signals[s.t];
+    if (!sig || !sig.updatedAt) return true; // missing = stale
+    return new Date(sig.updatedAt).toISOString().slice(0,10) !== _todayDay;
+  });
+  var modeLabel = missingOnly
+    ? ('updating ' + stale.length + ' missing/stale signals (' + stale.length + ' not from today)')
+    : '146 stocks (full re-run)';
+
+  if (missingOnly && stale.length === 0) {
+    toast('✓ All 146 NGX signals are fresh from today. Use "Re-run All" to force regenerate.','info');
+    return;
+  }
+
+  toast('Running AI signals for ' + modeLabel + '... This takes a few minutes.','info');
+  _sigLog('NGX', 'Starting NGX signal run: ' + modeLabel + '...', 'info');
+
   SIGNAL_ENGINE.runAll({
+    skipExisting: missingOnly,
     onProgress: function(p) {
       if (!p.ticker) return;
+      if (p.skipped) return; // silently skip already-done stocks
       var sig = p.signal || null;
-      // Buffett score from stock object — consistent with what card displays
       var stock = STOCKS.find(function(s){ return s.t === p.ticker; });
       var bScore = stock ? (stock._buffettScore || computeBuffettScore(stock)) : '—';
       var errInfo = p.error ? ' [' + p.error.substring(0,40) + ']' : '';
       _sigLog('NGX', p.ticker + ' → ' + (sig || 'error') + ' (' + bScore + '/10)' + errInfo, sig ? 'ok' : 'err');
     },
     onComplete: function(r) {
-      _sigLog('NGX','Done: '+r.completed+'/'+STOCKS.length+' signals generated','ok');
+      var newlyDone = STOCKS.filter(function(s){ return SIGNAL_ENGINE.signals[s.t]; }).length;
+      _sigLog('NGX', 'Done: ' + newlyDone + '/' + STOCKS.length + ' NGX signals now cached', 'ok');
       adminLoadNGXStatus();
-      toast('✓ NGX signals complete: '+r.completed+' stocks','success');
+      toast('✓ NGX signals: ' + newlyDone + '/' + STOCKS.length + ' stocks covered','success');
       if(typeof buildStockGrid==='function') buildStockGrid(visibleStocks);
     }
   });
