@@ -2492,7 +2492,7 @@ var SIGNAL_ENGINE = {
   runCount:      0,
   STORAGE_KEY:   'equityai_signals_v2',
   CACHE_TTL_MS:  24 * 60 * 60 * 1000,   // 24 hours
-  BATCH_DELAY:   800,                    // ms between Claude calls (rate limit safety)
+  BATCH_DELAY:   4000,                   // ms between Claude calls — 4s reduces 529 rate-limit errors
 
   // ── NGX MACRO CONTEXT (update this monthly) ────────────────────
   MACRO: {
@@ -2621,6 +2621,26 @@ var SIGNAL_ENGINE = {
       return parsed;
     })
     .catch(function(err) {
+      // If rate limited or overloaded, wait 10s and retry once before falling back
+      var _rateLimited = err.message && (err.message.indexOf('529') >= 0 || err.message.indexOf('overload') >= 0 || err.message.indexOf('rate') >= 0);
+      if (_rateLimited) {
+        console.warn('[SignalEngine] Rate limited — waiting 10s then retrying...');
+        return new Promise(function(res){ setTimeout(res, 10000); })
+          .then(function(){ return fetch(_url, { method:'POST', headers:_hdrs,
+            body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:300,
+              messages:[{role:'user',content:prompt}] }) }); })
+          .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+          .then(function(data){
+            var text = data.content ? data.content.filter(function(c){return c.type==='text';})[0].text : '';
+            text = text.replace(/```json|```/g,'').trim();
+            var parsed = JSON.parse(text);
+            parsed.signal = (parsed.signal||'HOLD').toUpperCase();
+            delete parsed.score;
+            parsed.updatedAt = new Date().toISOString();
+            parsed.ticker = s.t; parsed.priceAtGen = s.price;
+            return parsed;
+          });
+      }
       // Fallback: try direct Anthropic API if proxy fails
       return fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -3327,7 +3347,7 @@ function startSignalRun() {
       if (progBar) progBar.style.width = pct + '%';
       if (progPct) progPct.textContent = pct + '%';
       if (progLbl) progLbl.textContent = p.signal
-        ? ('✓ ' + p.ticker + ' → ' + p.signal + ' (' + p.score + '/10)')
+        ? ('✓ ' + p.ticker + ' → ' + p.signal)
         : ('Analysing ' + p.ticker + '... (' + (p.completed + 1) + '/' + p.total + ')');
       if (progLog && p.signal) {
         var line = document.createElement('div');
@@ -8962,11 +8982,13 @@ function adminRunNGXSignals() {
   _sigLog('NGX','Starting full NGX signal run (146 stocks)...','info');
   SIGNAL_ENGINE.runAll({
     onProgress: function(p) {
-      // p is an object: {idx, ticker, signal, score, completed, total}
-      if (!p.ticker) return; // skip intermediate calls before result is known
+      if (!p.ticker) return;
       var sig = p.signal || null;
-      var score = p.score || 0;
-      _sigLog('NGX', p.ticker + ' → ' + (sig || 'error') + ' (' + score + '/10)', sig ? 'ok' : 'err');
+      // Buffett score from stock object — consistent with what card displays
+      var stock = STOCKS.find(function(s){ return s.t === p.ticker; });
+      var bScore = stock ? (stock._buffettScore || computeBuffettScore(stock)) : '—';
+      var errInfo = p.error ? ' [' + p.error.substring(0,40) + ']' : '';
+      _sigLog('NGX', p.ticker + ' → ' + (sig || 'error') + ' (' + bScore + '/10)' + errInfo, sig ? 'ok' : 'err');
     },
     onComplete: function(r) {
       _sigLog('NGX','Done: '+r.completed+'/'+STOCKS.length+' signals generated','ok');
