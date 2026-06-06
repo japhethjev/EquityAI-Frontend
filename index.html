@@ -3005,33 +3005,52 @@ var SIGNAL_ENGINE = {
           if (!visibleStocks || visibleStocks.length === 0) visibleStocks = STOCKS.slice();
           if (typeof buildStockGrid === 'function') buildStockGrid(visibleStocks);
 
-          // Update market strip from server market stats
-          if (data.market) {
-            var mkt = data.market;
-            var gainEl = document.getElementById('mkt-gainers');
-            var lossEl = document.getElementById('mkt-losers');
-            var glSub  = document.getElementById('mkt-gl-sub');
-            if (gainEl) gainEl.textContent = mkt.gainers;
-            if (lossEl) lossEl.textContent = mkt.losers;
-            if (glSub)  glSub.textContent  = mkt.traded + ' stocks traded';
+          // Update market strip — use server data if valid, otherwise compute locally from STOCKS
+          var _mkt = (data.market && (data.market.gainers > 0 || data.market.losers > 0))
+                     ? data.market : null;
 
-            // Top gainer
-            if (mkt.topGainers && mkt.topGainers.length) {
-              var tg = mkt.topGainers[0];
-              var tgEl = document.getElementById('mkt-top-gainer');
-              var tgSub = document.getElementById('mkt-top-gainer-sub');
-              if (tgEl) tgEl.textContent = tg.ticker;
-              if (tgSub) tgSub.textContent = '+' + tg.chgPct.toFixed(2) + '% · ₦' + tg.price;
-            }
+          if (!_mkt) {
+            // Server returned 0/0 (prevClose bug) — compute locally from STOCKS.chg
+            var _gainers = [], _losers = [];
+            STOCKS.forEach(function(s) {
+              var raw = parseFloat((s.chg || '0').replace('%','').replace('+','')) || 0;
+              if (raw > 0) _gainers.push({ ticker: s.t, price: s.price, chgPct: raw });
+              else if (raw < 0) _losers.push({ ticker: s.t, price: s.price, chgPct: raw });
+            });
+            _gainers.sort(function(a,b){ return b.chgPct - a.chgPct; });
+            _losers.sort(function(a,b){ return a.chgPct - b.chgPct; });
+            _mkt = {
+              gainers:    _gainers.length,
+              losers:     _losers.length,
+              traded:     _gainers.length + _losers.length,
+              topGainers: _gainers.slice(0, 5),
+              topLosers:  _losers.slice(0, 5)
+            };
+          }
 
-            // Top loser
-            if (mkt.topLosers && mkt.topLosers.length) {
-              var tl = mkt.topLosers[0];
-              var tlEl = document.getElementById('mkt-top-loser');
-              var tlSub = document.getElementById('mkt-top-loser-sub');
-              if (tlEl) tlEl.textContent = tl.ticker;
-              if (tlSub) tlSub.textContent = tl.chgPct.toFixed(2) + '% · ₦' + tl.price;
-            }
+          var gainEl = document.getElementById('mkt-gainers');
+          var lossEl = document.getElementById('mkt-losers');
+          var glSub  = document.getElementById('mkt-gl-sub');
+          if (gainEl) gainEl.textContent = _mkt.gainers;
+          if (lossEl) lossEl.textContent = _mkt.losers;
+          if (glSub)  glSub.textContent  = _mkt.traded + ' stocks traded';
+
+          // Top gainer
+          if (_mkt.topGainers && _mkt.topGainers.length) {
+            var tg = _mkt.topGainers[0];
+            var tgEl  = document.getElementById('mkt-top-gainer');
+            var tgSub = document.getElementById('mkt-top-gainer-sub');
+            if (tgEl)  tgEl.textContent  = tg.ticker;
+            if (tgSub) tgSub.textContent = '+' + tg.chgPct.toFixed(2) + '% · ₦' + tg.price;
+          }
+
+          // Top loser
+          if (_mkt.topLosers && _mkt.topLosers.length) {
+            var tl = _mkt.topLosers[0];
+            var tlEl  = document.getElementById('mkt-top-loser');
+            var tlSub = document.getElementById('mkt-top-loser-sub');
+            if (tlEl)  tlEl.textContent  = tl.ticker;
+            if (tlSub) tlSub.textContent = tl.chgPct.toFixed(2) + '% · ₦' + tl.price;
           }
 
           // Compute ASI from weighted price changes across all STOCKS
@@ -9107,10 +9126,11 @@ function adminRunUSSignals(missingOnly) {
   _sigLog('US', 'Starting US signal run: ' + modeLabel + '...', 'info');
 
   var done=0, failed=0;
-  var BATCH = 10;
 
-  function runBatch(startIdx) {
-    if (startIdx >= tickers.length) {
+  // Sequential processing — one stock at a time with delay, same as NGX
+  // Avoids parallel rate-limit saturation on Railway Claude proxy
+  function runNext(idx) {
+    if (idx >= tickers.length) {
       var totalFresh = allTickers.filter(isFresh).length;
       _sigLog('US', 'Done: ' + totalFresh + '/' + allTickers.length + ' US signals now cached', 'ok');
       adminLoadUSStatus();
@@ -9118,26 +9138,22 @@ function adminRunUSSignals(missingOnly) {
       if(typeof buildStockGrid==='function') buildStockGrid(visibleStocks);
       return;
     }
-    var batch = tickers.slice(startIdx, startIdx+BATCH);
-    var pending = batch.length;
-    batch.forEach(function(ticker) {
-      SIGNAL_ENGINE.runOne(ticker, function(result, err) {
-        if (result) {
-          done++;
-          // Buffett score from stock object — same as NGX approach
-          var stock = US_STOCKS.find(function(s){ return s.t === ticker; });
-          var bScore = stock ? (stock._buffettScore || computeBuffettScore(stock)) : '—';
-          _sigLog('US', ticker + ' → ' + result.signal + ' (' + bScore + '/10)', 'ok');
-        } else {
-          failed++;
-          _sigLog('US', ticker + ' → failed: ' + (err||'unknown'), 'err');
-        }
-        pending--;
-        if (pending === 0) setTimeout(function(){ runBatch(startIdx+BATCH); }, 2000);
-      });
+    var ticker = tickers[idx];
+    SIGNAL_ENGINE.runOne(ticker, function(result, err) {
+      if (result) {
+        done++;
+        var stock = US_STOCKS.find(function(s){ return s.t === ticker; });
+        var bScore = stock ? (stock._buffettScore || computeBuffettScore(stock)) : '—';
+        _sigLog('US', ticker + ' → ' + result.signal + ' (' + bScore + '/10)', 'ok');
+      } else {
+        failed++;
+        _sigLog('US', ticker + ' → failed: ' + (err||'unknown'), 'err');
+      }
+      // 4s delay between calls — matches NGX BATCH_DELAY, prevents rate limiting
+      setTimeout(function(){ runNext(idx + 1); }, 4000);
     });
   }
-  runBatch(0);
+  runNext(0);
 }
 
 function adminClearUSSignals() {
