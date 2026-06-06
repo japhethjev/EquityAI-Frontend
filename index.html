@@ -2513,7 +2513,7 @@ var SIGNAL_ENGINE = {
         +'Price $'+s.price+', P/E '+s.pe+'x, ROE '+s.roe+', YtD '+s.ytd+'%, Revenue '+s.rev+' ('+s.revy+' YoY), '
         +'Net Profit '+s.pat+' ('+s.paty+' YoY), Net Margin '+s.npm+', D/E '+s.de+', FCF '+s.fcf+', MCap '+s.mc+'. '
         +'US Macro May 2026: S&P 500 at 7,536 (+17% YtD). Fed 4.25-4.50% on hold. CPI 3.8%. AI supercycle continues. '
-        +'Respond ONLY with valid JSON: {"signal":"BUY","score":7,"reasoning":"2 sentences max","keyRisk":"1 sentence","catalyst":"1 sentence","horizon":"6m"}';
+        +'Respond ONLY with valid JSON: {"signal":"BUY","reasoning":"2 sentences max","keyRisk":"1 sentence","catalyst":"1 sentence","horizon":"6m"}';
     }
     var m = SIGNAL_ENGINE.MACRO;
     return [
@@ -2562,7 +2562,6 @@ var SIGNAL_ENGINE = {
       'Respond with ONLY a valid JSON object, no markdown, no extra text:\n',
       '{\n',
       '  "signal": "BUY" or "HOLD" or "WATCH",\n',
-      '  "score": integer 1-10 (10 = strongest conviction buy),\n',
       '  "reasoning": "2-3 sentence explanation of the primary investment case",\n',
       '  "keyRisk": "single most important risk to monitor",\n',
       '  "catalyst": "specific event or metric that could change the signal",\n',
@@ -2615,7 +2614,7 @@ var SIGNAL_ENGINE = {
         throw new Error('invalid signal value: ' + parsed.signal);
       }
       parsed.signal     = parsed.signal.toUpperCase();
-      parsed.score      = Math.min(10, Math.max(1, parseInt(parsed.score) || 5));
+      delete parsed.score; // Score always comes from Buffett formula, not Claude
       parsed.updatedAt  = new Date().toISOString();
       parsed.ticker     = s.t;
       parsed.priceAtGen = s.price;
@@ -2648,7 +2647,7 @@ var SIGNAL_ENGINE = {
         text = text.replace(/```json/g, '').replace(/```/g, '').trim();
         var parsed = JSON.parse(text);
         parsed.signal    = (parsed.signal || 'HOLD').toUpperCase();
-        parsed.score     = Math.min(10, Math.max(1, parseInt(parsed.score) || 5));
+        delete parsed.score; // Score always comes from Buffett formula, not Claude
         parsed.updatedAt = new Date().toISOString();
         parsed.ticker    = s.t;
         parsed.priceAtGen = s.price;
@@ -2690,7 +2689,7 @@ var SIGNAL_ENGINE = {
 
       var s = (typeof ALL_STOCKS!=='undefined'&&ALL_STOCKS[idx])||STOCKS[idx];
       if (!s) { processNext(idx + 1); return; }
-      onProgress({ idx: idx, ticker: s.t, completed: completed, total: total });
+      // NOTE: no onProgress here before the call — only fire once we have a result
 
       SIGNAL_ENGINE.callClaude(idx)
         .then(function(result) {
@@ -2711,6 +2710,7 @@ var SIGNAL_ENGINE = {
           console.warn('[SignalEngine] Failed for ' + s.t + ':', err.message);
           failed.push({ ticker: s.t, error: err.message });
           completed++;
+          onProgress({ idx: idx, ticker: s.t, signal: null, score: 0, completed: completed, total: total, error: err.message });
           setTimeout(function() { processNext(idx + 1); }, SIGNAL_ENGINE.BATCH_DELAY);
         });
     }
@@ -3110,7 +3110,7 @@ function buildSignalPanel(s) {
     // Score — large prominent coloured circle badge
     var _sc = SIGNAL_ENGINE.signalColour(sig.signal);
     var _sb = SIGNAL_ENGINE.signalBg(sig.signal);
-    var _panelScore = (sig.score && sig.score > 0) ? sig.score : (s._buffettScore || computeBuffettScore(s));
+    var _panelScore = s._buffettScore || computeBuffettScore(s); // Always Buffett score
     html += '<div style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;'
           + 'width:72px;height:72px;border-radius:50%;background:' + _sb + ';border:2.5px solid ' + _sc + '">';
     html += '<div style="font-family:\'DM Mono\',monospace;font-size:24px;font-weight:800;color:' + _sc + ';line-height:1">'
@@ -3893,7 +3893,7 @@ function buildStockGrid(list) {
       // Left: signal label
       h += '<span style="font-family:\'Syne\',sans-serif;font-size:12px;font-weight:800;color:' + sigColor + ';letter-spacing:.04em">' + s.sig + '</span>';
       // Right: score — always show. AI score if available, Buffett score if not.
-      var _displayScore = (aiSig && aiSig.score) ? aiSig.score : (s._buffettScore || computeBuffettScore(s));
+      var _displayScore = s._buffettScore || computeBuffettScore(s); // Always Buffett score
       h += '<div style="display:flex;align-items:baseline;gap:1px">';
       h += '<span style="font-family:\'DM Mono\',monospace;font-size:16px;font-weight:700;color:' + sigColor + '">' + _displayScore + '</span>';
       h += '<span style="font-size:10px;color:' + sigColor + ';opacity:.7">/10</span>';
@@ -8961,8 +8961,12 @@ function adminRunNGXSignals() {
   toast('Running AI signals for all 146 NGX stocks... This takes a few minutes.','info');
   _sigLog('NGX','Starting full NGX signal run (146 stocks)...','info');
   SIGNAL_ENGINE.runAll({
-    onProgress: function(done,total,ticker,result) {
-      _sigLog('NGX', ticker+' → '+(result?result.signal:'error')+' ('+(result?result.score:0)+'/10)', result?'ok':'err');
+    onProgress: function(p) {
+      // p is an object: {idx, ticker, signal, score, completed, total}
+      if (!p.ticker) return; // skip intermediate calls before result is known
+      var sig = p.signal || null;
+      var score = p.score || 0;
+      _sigLog('NGX', p.ticker + ' → ' + (sig || 'error') + ' (' + score + '/10)', sig ? 'ok' : 'err');
     },
     onComplete: function(r) {
       _sigLog('NGX','Done: '+r.completed+'/'+STOCKS.length+' signals generated','ok');
