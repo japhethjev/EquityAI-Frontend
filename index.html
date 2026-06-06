@@ -9083,7 +9083,8 @@ function adminRefreshNGXSingle() {
 function adminRunUSSignals(missingOnly) {
   if (typeof US_STOCKS === 'undefined' || !US_STOCKS.length) { toast('US stocks not loaded','error'); return; }
   var hasKey = CONFIG.ANTHROPIC_API_KEY && CONFIG.ANTHROPIC_API_KEY.indexOf('REPLACE')<0 && CONFIG.ANTHROPIC_API_KEY.length>20;
-  if (!hasKey) { toast('Configure ANTHROPIC_API_KEY to generate US signals','error'); return; }
+  var hasServer = SIGNAL_ENGINE.SERVER_URL && SIGNAL_ENGINE.SERVER_URL.length>5;
+  if (!hasKey && !hasServer) { toast('Configure ANTHROPIC_API_KEY or SERVER_URL first','error'); return; }
 
   // Staleness check — "fresh" = generated today (WAT = UTC+1)
   var _todayDay = new Date(Date.now() + 60*60*1000).toISOString().slice(0,10);
