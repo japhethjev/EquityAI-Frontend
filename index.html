@@ -2590,7 +2590,7 @@ var SIGNAL_ENGINE = {
       headers: _hdrs,
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 600,
+        max_tokens: 800,
         messages: [{ role: 'user', content: prompt }]
       })
     })
@@ -2629,7 +2629,7 @@ var SIGNAL_ENGINE = {
         console.warn('[SignalEngine] Rate limited — waiting 10s then retrying...');
         return new Promise(function(res){ setTimeout(res, 10000); })
           .then(function(){ return fetch(_url, { method:'POST', headers:_hdrs,
-            body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:600,
+            body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:800,
               messages:[{role:'user',content:prompt}] }) }); })
           .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
           .then(function(data){
@@ -2654,7 +2654,7 @@ var SIGNAL_ENGINE = {
         },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 600,
+          max_tokens: 800,
           messages: [{ role: 'user', content: prompt }]
         })
       })
