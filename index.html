@@ -1020,7 +1020,7 @@ select.form-input option{background:#ffffff}
     <div class="dash-top">
       <div class="dash-title">
         Market Overview
-        <small id="dash-subtitle">NGX · May 29, 2026 · Prices: EODHD · Fundamentals: Yahoo Finance</small>
+        <small id="dash-subtitle">NGX · <span id="dash-price-date">loading...</span> · Prices: EODHD · Fundamentals: Yahoo Finance</small>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <span id="plan-banner" style="font-size:12px;color:var(--text3);align-self:center"></span>
@@ -2958,6 +2958,7 @@ var SIGNAL_ENGINE = {
         });
         if (updated > 0) {
           console.log('[NGX Prices] ✓ Applied ' + updated + '/146 fresh NGX prices from EODHD (as of ' + (data.updatedAt || 'today') + ')');
+          updatePriceDateSubtitle(data.updatedAt, 'NGX');
           if (typeof ALL_STOCKS !== 'undefined') ALL_STOCKS = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
           if (!visibleStocks || visibleStocks.length === 0) visibleStocks = STOCKS.slice();
           if (typeof buildStockGrid === 'function') buildStockGrid(visibleStocks);
@@ -3080,7 +3081,7 @@ var SIGNAL_ENGINE = {
 // ══════════════════════════════════════════════════════════════════════
 
 function buildSignalPanel(s) {
-  var sig = SIGNAL_ENGINE.getDisplay(s.t);
+  var sig = SIGNAL_ENGINE.getDisplay(s.t) || s._aiSignal || null;
   var isRunning = SIGNAL_ENGINE.isRunning;
 
   var html = '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius2);overflow:hidden;margin-bottom:14px">';
@@ -3106,12 +3107,18 @@ function buildSignalPanel(s) {
     html += '</div>';
     // Score
     html += '<div style="text-align:center">';
-    html += '<div style="font-family:\'DM Mono\',monospace;font-size:20px;font-weight:700;color:var(--gold)">'
-          + sig.score + '<span style="font-size:11px;color:var(--text3)">/10</span></div>';
-    html += '<div style="margin-top:2px">' + SIGNAL_ENGINE.scoreDots(sig.score) + '</div>';
-    html += '<div style="font-size:8px;color:var(--text3);margin-top:2px">CONVICTION</div>';
+    // Score — large prominent coloured circle badge
+    var _sc = SIGNAL_ENGINE.signalColour(sig.signal);
+    var _sb = SIGNAL_ENGINE.signalBg(sig.signal);
+    var _panelScore = (sig.score && sig.score > 0) ? sig.score : (s._buffettScore || computeBuffettScore(s));
+    html += '<div style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;'
+          + 'width:72px;height:72px;border-radius:50%;background:' + _sb + ';border:2.5px solid ' + _sc + '">';
+    html += '<div style="font-family:\'DM Mono\',monospace;font-size:24px;font-weight:800;color:' + _sc + ';line-height:1">'
+          + _panelScore + '</div>';
+    html += '<div style="font-size:10px;font-weight:700;color:' + _sc + ';opacity:.75">/10</div>';
     html += '</div>';
-    html += '</div>';
+    html += '<div style="font-size:10px;color:var(--text3);margin-top:6px;font-weight:600;letter-spacing:.08em;text-transform:uppercase">AI Score</div>';
+    html += '</div>';    html += '</div>';
   } else {
     html += '<span style="font-size:11px;color:var(--text3);font-style:italic">'
           + (isRunning ? 'Generating...' : 'Not yet generated') + '</span>';
@@ -3711,6 +3718,111 @@ function promptUpgrade() {
 }
 
 // ══════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════
+// BUFFETT SCORE — deterministic 0-10 from static fundamentals
+// Factors: ROE (25%), P/E value (20%), Net Margin (20%),
+//          Debt/Equity safety (15%), Revenue growth (10%), Dividend (10%)
+// Same inputs → same output every time. No AI call needed.
+// ══════════════════════════════════════════════════════════════════════
+function computeBuffettScore(s) {
+  if (!s) return 0;
+  var isUS = (s.market === 'US');
+
+  // ── 1. ROE — Buffett's primary quality metric (20%) ──────────────
+  // >25% = excellent moat, >18% = good, >12% = acceptable, <8% = poor
+  var roe = parseFloat((s.roe||'0').replace('%','')) || 0;
+  var roeScore = roe >= 30 ? 10 : roe >= 25 ? 9 : roe >= 20 ? 8
+               : roe >= 15 ? 7 : roe >= 12 ? 6 : roe >= 8 ? 4 : 2;
+
+  // ── 2. P/E value — price discipline (20%) ────────────────────────
+  // NGX: <5x cheap, 5-10x fair, >18x expensive
+  // US:  <15x cheap, 15-25x fair, >35x expensive
+  var pe = parseFloat(s.pe) || 20;
+  var peScore;
+  if (isUS) {
+    peScore = pe <= 0 ? 1 : pe < 12 ? 10 : pe < 18 ? 9 : pe < 25 ? 7
+            : pe < 35 ? 5 : pe < 50 ? 3 : 1;
+  } else {
+    peScore = pe <= 0 ? 1 : pe < 4 ? 10 : pe < 6 ? 9 : pe < 8 ? 8
+            : pe < 12 ? 7 : pe < 18 ? 5 : pe < 25 ? 3 : 1;
+  }
+
+  // ── 3. Net margin — earnings quality (20%) ────────────────────────
+  // >30% = excellent moat, >20% = strong, >10% = decent, <5% = thin
+  var npm = parseFloat((s.npm||'0').replace('%','')) || 0;
+  var npmScore = npm >= 40 ? 10 : npm >= 30 ? 9 : npm >= 20 ? 8
+               : npm >= 12 ? 6 : npm >= 6 ? 4 : npm >= 2 ? 2 : 1;
+
+  // ── 4. Debt/Equity — balance sheet safety (15%) ───────────────────
+  // Buffett hates debt. D/E < 0.3 = fortress, > 2.0 = concerning
+  var de = parseFloat((s.de||'1').replace('x','')) || 1;
+  var deScore = de <= 0.1 ? 10 : de <= 0.3 ? 9 : de <= 0.5 ? 8
+              : de <= 0.8 ? 7 : de <= 1.0 ? 6 : de <= 1.5 ? 4
+              : de <= 2.0 ? 3 : 1;
+
+  // ── 5. FCF Yield — cash generation vs market price (15%) ─────────
+  // FCF Yield = FCF / Market Cap. Buffett's favourite real-money test.
+  // Parse FCF (stored as e.g. "₦620B", "$90B", "₦1.50T")
+  var fcfStr = (s.fcf || '0').replace(/[₦$,]/g, '');
+  var fcfNum = 0;
+  if (fcfStr.indexOf('T') >= 0)      fcfNum = parseFloat(fcfStr) * 1000; // convert T→B
+  else if (fcfStr.indexOf('B') >= 0) fcfNum = parseFloat(fcfStr);
+  else                               fcfNum = parseFloat(fcfStr) / 1000;  // M→B
+  // Parse MCap (stored as e.g. "₦4.20T", "$3.17T", "₦487.6B")
+  var mcStr = (s.mc || '0').replace(/[₦$,]/g, '');
+  var mcNum = 0;
+  if (mcStr.indexOf('T') >= 0)      mcNum = parseFloat(mcStr) * 1000;
+  else if (mcStr.indexOf('B') >= 0) mcNum = parseFloat(mcStr);
+  else                              mcNum = parseFloat(mcStr) / 1000;
+  // FCF Yield % = (FCF / MCap) × 100
+  var fcfYield = (mcNum > 0 && fcfNum > 0) ? (fcfNum / mcNum * 100) : 0;
+  // Scoring: >10% = exceptional, >6% = strong, >3% = decent, <1% = poor
+  // Negative FCF = serious concern
+  var fcfScore;
+  if (fcfNum <= 0)       fcfScore = 1;   // negative FCF — cash burning
+  else if (fcfYield >= 15) fcfScore = 10; // exceptional — very cheap vs cash flow
+  else if (fcfYield >= 10) fcfScore = 9;
+  else if (fcfYield >= 7)  fcfScore = 8;
+  else if (fcfYield >= 5)  fcfScore = 7;
+  else if (fcfYield >= 3)  fcfScore = 6;
+  else if (fcfYield >= 1)  fcfScore = 4;
+  else                     fcfScore = 2;
+
+  // ── 6. Revenue growth YoY (10%) ───────────────────────────────────
+  var revy = parseFloat((s.revy||'0').replace('+','').replace('%','')) || 0;
+  var revScore = revy >= 50 ? 10 : revy >= 30 ? 9 : revy >= 20 ? 8
+               : revy >= 10 ? 7 : revy >= 5 ? 6 : revy >= 0 ? 4 : 1;
+
+  // ── Weighted composite (sums to 100%) ─────────────────────────────
+  // ROE 20% · P/E 20% · Net Margin 20% · D/E 15% · FCF Yield 15% · Rev Growth 10%
+  var raw = (roeScore * 0.20) + (peScore * 0.20) + (npmScore * 0.20)
+          + (deScore * 0.15) + (fcfScore * 0.15) + (revScore * 0.10);
+
+  return Math.round(Math.min(10, Math.max(1, raw)));
+}
+
+// (Buffett scores computed after ALL_STOCKS is built — see below)
+
+// Set subtitle to today's date immediately — updated to actual price date when prices load
+(function() {
+  var el = document.getElementById('dash-price-date');
+  if (el) el.textContent = new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' });
+})();
+
+
+// Update the Market Overview subtitle with the real price date
+function updatePriceDateSubtitle(isoDateStr, market) {
+  var el = document.getElementById('dash-price-date');
+  if (!el) return;
+  try {
+    var d = isoDateStr ? new Date(isoDateStr) : new Date();
+    var fmt = d.toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' });
+    el.textContent = fmt;
+  } catch(e) {
+    el.textContent = new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+}
 // PATCH buildStockGrid — show AI score badge on cards
 // ══════════════════════════════════════════════════════════════════════
 
@@ -3743,7 +3855,7 @@ function buildStockGrid(list) {
     var neg  = (s.ytd < 0);
     var sigColor = s.sig === 'BUY' ? 'var(--green)' : s.sig === 'HOLD' ? 'var(--amber)' : 'var(--blue)';
     var sigBg    = s.sig === 'BUY' ? 'rgba(34,197,94,.12)' : s.sig === 'HOLD' ? 'rgba(245,158,11,.12)' : 'rgba(59,130,246,.1)';
-    var aiSig    = SIGNAL_ENGINE.getDisplay(s.t);
+    var aiSig    = SIGNAL_ENGINE.getDisplay(s.t) || s._aiSignal || null;
 
     h += '<div class="stock-card' + (ia ? ' active' : '') + (locked ? ' locked' : '') + '" onclick="' + (locked ? 'promptUpgrade()' : 'clickStock(' + idx + ')') + '">';
     if (locked) h += '<div class="lock-overlay">🔒</div>';
@@ -3773,20 +3885,20 @@ function buildStockGrid(list) {
     h += '<div class="sc-ytd' + (neg ? ' neg' : '') + '">' + (!locked ? ((neg ? '▼' : '▲') + ' ' + Math.abs(s.ytd) + '% YtD') : 'Upgrade to view') + '</div>';
 
     if (!locked) {
-      // AI Signal badge
-      h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:7px;margin-bottom:5px">';
-      h += '<div style="display:inline-flex;align-items:center;gap:5px;background:' + sigBg
-         + ';border:1px solid ' + sigColor + ';border-radius:20px;padding:2px 8px">';
-      h += '<span style="font-size:9px;font-weight:800;color:' + sigColor + '">' + s.sig + '</span>';
+      // AI Signal badge + Score — combined prominent display
+      h += '<div style="margin-top:8px;margin-bottom:6px">';
+      // Full-width signal+score badge
+      h += '<div style="display:flex;align-items:center;justify-content:space-between;background:' + sigBg
+         + ';border:1.5px solid ' + sigColor + ';border-radius:8px;padding:5px 10px">';
+      // Left: signal label
+      h += '<span style="font-family:\'Syne\',sans-serif;font-size:12px;font-weight:800;color:' + sigColor + ';letter-spacing:.04em">' + s.sig + '</span>';
+      // Right: score — always show. AI score if available, Buffett score if not.
+      var _displayScore = (aiSig && aiSig.score) ? aiSig.score : (s._buffettScore || computeBuffettScore(s));
+      h += '<div style="display:flex;align-items:baseline;gap:1px">';
+      h += '<span style="font-family:\'DM Mono\',monospace;font-size:16px;font-weight:700;color:' + sigColor + '">' + _displayScore + '</span>';
+      h += '<span style="font-size:10px;color:' + sigColor + ';opacity:.7">/10</span>';
       h += '</div>';
-      if (aiSig) {
-        h += '<div style="display:flex;align-items:center;gap:3px" title="AI conviction score ' + aiSig.score + '/10">';
-        h += '<span style="font-size:9px;color:var(--text3)">🤖</span>';
-        h += '<span style="font-family:\'DM Mono\',monospace;font-size:10px;font-weight:700;color:var(--gold)">' + aiSig.score + '/10</span>';
-        h += '</div>';
-      } else if (SIGNAL_ENGINE.isRunning) {
-        h += '<span style="font-size:9px;color:var(--text3)">⏳</span>';
-      }
+      h += '</div>';
       h += '</div>';
 
       h += '<div class="sc-metrics">';
@@ -8086,6 +8198,11 @@ var US_STOCKS = [
 // ALL_STOCKS — unified pool (NGX + US) for all engines
 // ══════════════════════════════════════════════════════════════════════
 var ALL_STOCKS = STOCKS.concat(US_STOCKS);
+
+// Pre-compute Buffett scores for ALL stocks (NGX + US) — runs after both arrays are defined
+(function() {
+  ALL_STOCKS.forEach(function(s) { s._buffettScore = computeBuffettScore(s); });
+})();
 
 // ── MARKET FILTER ─────────────────────────────────────────────────────
 var _mktFilter = 'NGX';
