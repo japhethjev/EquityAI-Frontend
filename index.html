@@ -1681,7 +1681,8 @@ select.form-input option{background:#ffffff}
             </div>
             <!-- Bulk actions -->
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
-              <button class="btn btn-gold btn-sm" onclick="adminRunUSSignals()">🤖 Run All US Signals Now</button>
+              <button class="btn btn-gold btn-sm" onclick="adminRunUSSignals(false)">🤖 Run All US Signals Now</button>
+              <button class="btn btn-ghost btn-sm" onclick="adminRunUSSignals(true)" style="color:var(--green);border-color:var(--green)">⚡ Fill Missing / Stale</button>
               <button class="btn btn-ghost btn-sm" onclick="adminClearUSSignals()">🗑️ Clear US Cache</button>
               <button class="btn btn-ghost btn-sm" onclick="adminLoadUSStatus()">⟳ Refresh Status</button>
             </div>
@@ -9079,20 +9080,40 @@ function adminRefreshNGXSingle() {
   }, 1000);
 }
 
-function adminRunUSSignals() {
+function adminRunUSSignals(missingOnly) {
   if (typeof US_STOCKS === 'undefined' || !US_STOCKS.length) { toast('US stocks not loaded','error'); return; }
   var hasKey = CONFIG.ANTHROPIC_API_KEY && CONFIG.ANTHROPIC_API_KEY.indexOf('REPLACE')<0 && CONFIG.ANTHROPIC_API_KEY.length>20;
   if (!hasKey) { toast('Configure ANTHROPIC_API_KEY to generate US signals','error'); return; }
-  toast('Generating US signals... Processing 500 stocks in batches. This takes several minutes.','info');
-  _sigLog('US','Starting full US signal run ('+US_STOCKS.length+' stocks)...','info');
+
+  // Staleness check — "fresh" = generated today (WAT = UTC+1)
+  var _todayDay = new Date(Date.now() + 60*60*1000).toISOString().slice(0,10);
+  function isFresh(ticker) {
+    var sig = SIGNAL_ENGINE.signals[ticker];
+    if (!sig || !sig.updatedAt) return false;
+    return new Date(sig.updatedAt).toISOString().slice(0,10) === _todayDay;
+  }
+
+  var allTickers = US_STOCKS.map(function(s){return s.t;});
+  var tickers = missingOnly ? allTickers.filter(function(t){ return !isFresh(t); }) : allTickers;
+
+  if (missingOnly && tickers.length === 0) {
+    toast('✓ All US signals are fresh from today. Use "Re-run All" to force regenerate.','info');
+    return;
+  }
+
+  var modeLabel = missingOnly ? (tickers.length + ' missing/stale') : US_STOCKS.length + ' stocks (full re-run)';
+  toast('Generating US signals for ' + modeLabel + '. This takes several minutes.','info');
+  _sigLog('US', 'Starting US signal run: ' + modeLabel + '...', 'info');
+
   var done=0, failed=0;
-  var tickers = US_STOCKS.map(function(s){return s.t;});
   var BATCH = 10;
+
   function runBatch(startIdx) {
     if (startIdx >= tickers.length) {
-      _sigLog('US','Done: '+done+' signals generated, '+failed+' failed','ok');
+      var totalFresh = allTickers.filter(isFresh).length;
+      _sigLog('US', 'Done: ' + totalFresh + '/' + allTickers.length + ' US signals now cached', 'ok');
       adminLoadUSStatus();
-      toast('✓ US signals complete: '+done+'/'+tickers.length+' stocks','success');
+      toast('✓ US signals: ' + totalFresh + '/' + allTickers.length + ' stocks covered','success');
       if(typeof buildStockGrid==='function') buildStockGrid(visibleStocks);
       return;
     }
@@ -9100,8 +9121,16 @@ function adminRunUSSignals() {
     var pending = batch.length;
     batch.forEach(function(ticker) {
       SIGNAL_ENGINE.runOne(ticker, function(result, err) {
-        if (result) { done++; _sigLog('US', ticker+' → '+result.signal+' ('+result.score+'/10)', 'ok'); }
-        else { failed++; _sigLog('US', ticker+' → failed: '+(err||'unknown'), 'err'); }
+        if (result) {
+          done++;
+          // Buffett score from stock object — same as NGX approach
+          var stock = US_STOCKS.find(function(s){ return s.t === ticker; });
+          var bScore = stock ? (stock._buffettScore || computeBuffettScore(stock)) : '—';
+          _sigLog('US', ticker + ' → ' + result.signal + ' (' + bScore + '/10)', 'ok');
+        } else {
+          failed++;
+          _sigLog('US', ticker + ' → failed: ' + (err||'unknown'), 'err');
+        }
         pending--;
         if (pending === 0) setTimeout(function(){ runBatch(startIdx+BATCH); }, 2000);
       });
@@ -9139,8 +9168,10 @@ function adminRefreshUSSingle() {
     if (_done) return;
     _done=true; clearTimeout(_timer);
     if (result) {
-      if(res) res.innerHTML='<span style="color:var(--green)">✓ '+ticker+': '+result.signal+' ('+result.score+'/10) — '+result.reasoning+'</span>';
-      _sigLog('US',ticker+' → '+result.signal+' ('+result.score+'/10)','ok');
+      var _usStock = (typeof US_STOCKS!=='undefined') ? US_STOCKS.find(function(s){return s.t===ticker;}) : null;
+      var _usBScore = _usStock ? (_usStock._buffettScore || computeBuffettScore(_usStock)) : '—';
+      if(res) res.innerHTML='<span style="color:var(--green)">✓ '+ticker+': '+result.signal+' ('+_usBScore+'/10) — '+result.reasoning+'</span>';
+      _sigLog('US',ticker+' → '+result.signal+' ('+_usBScore+'/10)','ok');
       adminLoadUSStatus();
       if(typeof buildStockGrid==='function') buildStockGrid(visibleStocks);
     } else {
