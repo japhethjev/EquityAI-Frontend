@@ -2493,7 +2493,7 @@ var SIGNAL_ENGINE = {
   lastRunAt:     null,
   runCount:      0,
   STORAGE_KEY:   'equityai_signals_v2',
-  CACHE_TTL_MS:  24 * 60 * 60 * 1000,   // 24 hours
+  CACHE_TTL_MS:  7 * 24 * 60 * 60 * 1000, // 7 days — signals manually refreshed via admin
   BATCH_DELAY:   4000,                   // ms between Claude calls — 4s reduces 529 rate-limit errors
 
   // ── NGX MACRO CONTEXT (update this monthly) ────────────────────
@@ -2718,8 +2718,8 @@ var SIGNAL_ENGINE = {
         var _sigDate  = _sig.updatedAt ? new Date(_sig.updatedAt) : null;
         var _today    = new Date();
         // "Fresh" = generated on the same calendar day (WAT = UTC+1)
-        var _sigDay   = _sigDate ? _sigDate.toISOString().slice(0,10) : null;
-        var _todayDay = new Date(_today.getTime() + 60*60*1000).toISOString().slice(0,10); // UTC+1 approx
+        var _sigDay   = _sigDate ? (_sigDate.getFullYear()+'-'+_sigDate.getMonth()+'-'+_sigDate.getDate()) : null;
+        var _todayDay = _today.getFullYear()+'-'+_today.getMonth()+'-'+_today.getDate();
         var _isFresh  = (_sigDay === _todayDay);
         if (_isFresh) {
           // Signal is from today — skip it
@@ -2827,21 +2827,39 @@ var SIGNAL_ENGINE = {
         return false;
       }
 
-      // Apply cached signals back to STOCKS
+      // Apply cached signals back to ALL stocks (NGX + US)
       var applied = 0;
+
+      // Restore ALL signals into SIGNAL_ENGINE.signals first
+      Object.keys(cached.signals).forEach(function(ticker) {
+        SIGNAL_ENGINE.signals[ticker] = cached.signals[ticker];
+      });
+
+      // Apply to NGX STOCKS array
       STOCKS.forEach(function(s) {
         var sig = cached.signals[s.t];
         if (sig) {
           s.sig       = sig.signal;
           s._aiSignal = sig;
-          SIGNAL_ENGINE.signals[s.t] = sig;
           applied++;
         }
       });
 
+      // Apply to US_STOCKS array
+      if (typeof US_STOCKS !== 'undefined') {
+        US_STOCKS.forEach(function(s) {
+          var sig = cached.signals[s.t];
+          if (sig) {
+            s.sig       = sig.signal;
+            s._aiSignal = sig;
+            applied++;
+          }
+        });
+      }
+
       SIGNAL_ENGINE.lastRunAt = cached.lastRunAt;
       var hoursOld = Math.floor(age / 3600000);
-      console.log('[SignalEngine] Loaded ' + applied + ' signals from cache (' + hoursOld + 'h old)');
+      console.log('[SignalEngine] Loaded ' + applied + ' signals from cache (' + hoursOld + 'h old — NGX + US)');
       return true;
     } catch(e) {
       console.warn('[SignalEngine] Cache load failed:', e.message);
@@ -9024,11 +9042,13 @@ function adminRunNGXSignals(missingOnly) {
   var missing = STOCKS.filter(function(s){ return !SIGNAL_ENGINE.signals[s.t]; });
   var runCount = missingOnly ? missing.length : STOCKS.length;
   // Count stale signals (not generated today)
-  var _todayDay = new Date(Date.now() + 60*60*1000).toISOString().slice(0,10);
+  var _nowNGX = new Date();
+  var _todayStrNGX = _nowNGX.getFullYear() + '-' + _nowNGX.getMonth() + '-' + _nowNGX.getDate();
   var stale = STOCKS.filter(function(s){
     var sig = SIGNAL_ENGINE.signals[s.t];
     if (!sig || !sig.updatedAt) return true; // missing = stale
-    return new Date(sig.updatedAt).toISOString().slice(0,10) !== _todayDay;
+    var d = new Date(sig.updatedAt);
+    return (d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate()) !== _todayStrNGX;
   });
   var modeLabel = missingOnly
     ? ('updating ' + stale.length + ' missing/stale signals (' + stale.length + ' not from today)')
@@ -9105,12 +9125,15 @@ function adminRunUSSignals(missingOnly) {
   var hasServer = SIGNAL_ENGINE.SERVER_URL && SIGNAL_ENGINE.SERVER_URL.length>5;
   if (!hasKey && !hasServer) { toast('Configure ANTHROPIC_API_KEY or SERVER_URL first','error'); return; }
 
-  // Staleness check — "fresh" = generated today (WAT = UTC+1)
-  var _todayDay = new Date(Date.now() + 60*60*1000).toISOString().slice(0,10);
+  // Staleness check — "fresh" = generated on the same local calendar day
+  var _now = new Date();
+  var _todayStr = _now.getFullYear() + '-' + _now.getMonth() + '-' + _now.getDate();
   function isFresh(ticker) {
     var sig = SIGNAL_ENGINE.signals[ticker];
     if (!sig || !sig.updatedAt) return false;
-    return new Date(sig.updatedAt).toISOString().slice(0,10) === _todayDay;
+    var d = new Date(sig.updatedAt);
+    var dStr = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+    return dStr === _todayStr;
   }
 
   var allTickers = US_STOCKS.map(function(s){return s.t;});
