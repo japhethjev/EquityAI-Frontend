@@ -2804,7 +2804,19 @@ var SIGNAL_ENGINE = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         secret:     secret,
-        signals:    SIGNAL_ENGINE.signals,
+        signals: (function() {
+          // Attach buffettScore to each signal before syncing to server
+          var enriched = {};
+          var allStocks = (typeof ALL_STOCKS !== 'undefined') ? ALL_STOCKS : STOCKS;
+          Object.keys(SIGNAL_ENGINE.signals).forEach(function(ticker) {
+            var sig = SIGNAL_ENGINE.signals[ticker];
+            var stock = allStocks.find(function(s){ return s.t === ticker; });
+            enriched[ticker] = Object.assign({}, sig, {
+              buffettScore: stock ? (stock._buffettScore || computeBuffettScore(stock)) : 0
+            });
+          });
+          return enriched;
+        })(),
         lastRunAt:  SIGNAL_ENGINE.lastRunAt,
         tickerCount: Object.keys(SIGNAL_ENGINE.signals).length
       })
