@@ -1319,6 +1319,7 @@ select.form-input option{background:#ffffff}
       <div class="admin-nav-item" onclick="adminNav('api-keys',this)">🔑 API Keys & Docs</div>
       <div class="admin-nav-item" onclick="adminNav('controls',this)">⚙️ Manual Controls</div>
       <div class="admin-nav-item" onclick="adminNav('signal-mgmt',this)">📡 Signal Management</div>
+      <div class="admin-nav-item" onclick="adminNav('fundamentals',this)">📂 Fundamentals Pipeline</div>
       <div class="adm-nav-section">Reports</div>
       <div class="admin-nav-item" onclick="adminNav('reports',this)">📋 Reports</div>
       <div class="admin-nav-item" onclick="adminNav('logs',this)">🗂️ Activity Logs</div>
@@ -8809,6 +8810,7 @@ function adminNav(section,el){
   if(section==='controls'){renderControls();}
   if(section==='reports'){renderReportCards();}
   if(section==='logs'){renderLogs();}
+  if(section==='fundamentals'){renderFundamentalsPanel();}
 }
 
 function openAddMemberModal(){
@@ -10668,6 +10670,300 @@ function adminRefreshAll() {
   if (activeItem) activeItem.click();
   else renderAdminOverview();
 }
+
+// ══════════════════════════════════════════════════════════════════
+// FUNDAMENTALS PIPELINE — Admin Panel UI
+// Upload PDFs, review extractions, verify or reject, track progress
+// ══════════════════════════════════════════════════════════════════
+
+function renderFundamentalsPanel() {
+  var main = document.getElementById('admin-main');
+  if (!main) return;
+
+  // Load status from server
+  var svrUrl = typeof SIGNAL_ENGINE !== 'undefined' ? SIGNAL_ENGINE.SERVER_URL : '';
+  var secret = typeof CONFIG !== 'undefined' ? (CONFIG.ADMIN_SECRET || '') : '';
+
+  main.innerHTML = '<div style="max-width:900px">' +
+    '<div style="font-size:22px;font-weight:700;color:var(--text);margin-bottom:6px">📂 Fundamentals Pipeline</div>' +
+    '<div style="font-size:13px;color:var(--text3);margin-bottom:24px">Upload annual and quarterly financial statement PDFs. Claude extracts the data. You review and verify before it goes live.</div>' +
+
+    // Status strip
+    '<div id="fund-status" style="background:var(--bg2);border-radius:10px;padding:14px 18px;margin-bottom:24px;font-size:13px;color:var(--text3)">Loading pipeline status...</div>' +
+
+    // Upload section
+    '<div style="background:var(--bg2);border-radius:12px;padding:20px;margin-bottom:24px">' +
+      '<div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:14px">Upload Financial Statement PDF</div>' +
+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">' +
+        '<div>' +
+          '<label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px">PDF File</label>' +
+          '<input type="file" id="fund-pdf-input" accept=".pdf" style="width:100%;font-size:13px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)">' +
+        '</div>' +
+        '<div>' +
+          '<label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px">Market Cap at Period End (₦ millions)</label>' +
+          '<input type="number" id="fund-mcap" placeholder="e.g. 4200000 for ₦4.2T" style="width:100%;font-size:13px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)">' +
+        '</div>' +
+      '</div>' +
+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">' +
+        '<div>' +
+          '<label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px">Share Price at Period End (₦)</label>' +
+          '<input type="number" id="fund-price" placeholder="e.g. 128" step="0.01" style="width:100%;font-size:13px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)">' +
+        '</div>' +
+        '<div>' +
+          '<label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px">USD/NGN Rate at Period End</label>' +
+          '<input type="number" id="fund-fx" placeholder="e.g. 1580" style="width:100%;font-size:13px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)">' +
+        '</div>' +
+      '</div>' +
+
+      '<button onclick="uploadFundamentalsPDF()" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:10px 22px;font-size:13px;font-weight:600;cursor:pointer">📤 Extract Fundamentals</button>' +
+      '<span id="fund-upload-status" style="margin-left:14px;font-size:13px;color:var(--text3)"></span>' +
+    '</div>' +
+
+    // Review section
+    '<div id="fund-review-section" style="display:none;background:var(--bg2);border-radius:12px;padding:20px;margin-bottom:24px">' +
+      '<div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px">Review Extracted Data</div>' +
+      '<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Review the data Claude extracted. Edit any incorrect values before confirming.</div>' +
+      '<div id="fund-review-content"></div>' +
+      '<div style="display:flex;gap:10px;margin-top:16px">' +
+        '<button id="fund-verify-btn" onclick="verifyFundamentals()" style="background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px 22px;font-size:13px;font-weight:600;cursor:pointer">✓ Verify & Save</button>' +
+        '<button onclick="rejectFundamentals()" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer">✗ Reject</button>' +
+      '</div>' +
+    '</div>' +
+
+    // Coverage table
+    '<div style="background:var(--bg2);border-radius:12px;padding:20px">' +
+      '<div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:14px">Coverage Progress</div>' +
+      '<div id="fund-coverage-table">Loading...</div>' +
+    '</div>' +
+  '</div>';
+
+  // Load status and coverage
+  loadFundamentalsStatus(svrUrl, secret);
+}
+
+var _fundExtracted = null; // holds last extraction for verify step
+var _fundRawId     = null;
+
+function loadFundamentalsStatus(svrUrl, secret) {
+  if (!svrUrl || !secret) {
+    document.getElementById('fund-status').textContent = 'Server URL or admin secret not configured.';
+    return;
+  }
+  fetch(svrUrl + '/admin/fundamentals-status?secret=' + secret)
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.ok) return;
+      var el = document.getElementById('fund-status');
+      if (el) el.innerHTML =
+        '<span style="color:var(--green);font-weight:600">✓ ' + d.verified_count + '/' + d.total_ngx + ' companies</span> have verified fundamentals &nbsp;·&nbsp; ' +
+        '<span style="color:var(--amber)">' + (d.pending_review||[]).length + ' pending review</span> &nbsp;·&nbsp; ' +
+        'Total extraction cost: <strong>$' + (d.total_cost_usd||0).toFixed(3) + '</strong>';
+
+      // Render coverage table
+      var tbl = document.getElementById('fund-coverage-table');
+      if (!tbl || !d.coverage) return;
+      if (!d.coverage.length) { tbl.innerHTML = '<span style="color:var(--text3);font-size:13px">No data uploaded yet. Upload a PDF to get started.</span>'; return; }
+      var html = '<table style="width:100%;border-collapse:collapse;font-size:12px">';
+      html += '<tr style="background:var(--bg3)"><th style="padding:6px 10px;text-align:left">Ticker</th><th style="padding:6px 10px;text-align:left">Company</th><th style="padding:6px 10px;text-align:center">Annuals</th><th style="padding:6px 10px;text-align:center">Quarterlies</th><th style="padding:6px 10px;text-align:center">Years</th><th style="padding:6px 10px;text-align:center">Last Updated</th></tr>';
+      d.coverage.forEach(function(row, i) {
+        var bg = i%2===0 ? 'var(--bg2)' : 'var(--bg)';
+        var updated = row.last_updated ? row.last_updated.split('T')[0] : '—';
+        html += '<tr style="background:'+bg+'">' +
+          '<td style="padding:5px 10px;font-weight:600;color:var(--primary)">' + row.ticker + '</td>' +
+          '<td style="padding:5px 10px;color:var(--text2)">' + (row.company_name||'') + '</td>' +
+          '<td style="padding:5px 10px;text-align:center;color:var(--green)">' + (row.annual_count||0) + '</td>' +
+          '<td style="padding:5px 10px;text-align:center;color:var(--text3)">' + (row.quarterly_count||0) + '</td>' +
+          '<td style="padding:5px 10px;text-align:center;color:var(--text3)">' + (row.earliest_year||'')+ '–' + (row.latest_year||'') + '</td>' +
+          '<td style="padding:5px 10px;text-align:center;color:var(--text3)">' + updated + '</td>' +
+          '</tr>';
+      });
+      html += '</table>';
+      tbl.innerHTML = html;
+    })
+    .catch(function(e){ document.getElementById('fund-status').textContent = 'Error loading status: ' + e.message; });
+}
+
+function uploadFundamentalsPDF() {
+  var fileInput   = document.getElementById('fund-pdf-input');
+  var mcap        = parseFloat(document.getElementById('fund-mcap').value) || null;
+  var price       = parseFloat(document.getElementById('fund-price').value) || null;
+  var fx          = parseFloat(document.getElementById('fund-fx').value) || null;
+  var statusEl    = document.getElementById('fund-upload-status');
+  var svrUrl      = SIGNAL_ENGINE.SERVER_URL;
+  var secret      = CONFIG.ADMIN_SECRET || '';
+
+  if (!fileInput.files || !fileInput.files[0]) { statusEl.textContent = 'Please select a PDF file.'; return; }
+  var file = fileInput.files[0];
+  if (!file.name.toLowerCase().endsWith('.pdf')) { statusEl.textContent = 'File must be a PDF.'; return; }
+
+  statusEl.innerHTML = '⏳ Reading PDF...';
+  document.getElementById('fund-review-section').style.display = 'none';
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var base64 = e.target.result.split(',')[1];
+    statusEl.innerHTML = '⏳ Sending to Claude for extraction (~30 seconds)...';
+
+    fetch(svrUrl + '/admin/extract-fundamentals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret: secret, filename: file.name, pdf_base64: base64 })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.duplicate) {
+        statusEl.innerHTML = '⚠ Duplicate: this PDF was already processed (' + d.filename + ')';
+        return;
+      }
+      if (!d.ok || !d.extracted) {
+        statusEl.innerHTML = '✗ Error: ' + (d.error || 'Unknown error');
+        return;
+      }
+      statusEl.innerHTML = '✓ Extracted <strong>' + d.ticker + ' ' + d.period + '</strong> — $' + (d.cost_usd||0).toFixed(4) + ' · Review below';
+      _fundExtracted = { raw_id: d.raw_id, data: d.extracted, market_cap_mn: mcap, share_price: price, naira_usd_rate: fx };
+      _fundRawId = d.raw_id;
+      renderFundamentalsReview(d.extracted, d.raw_id);
+    })
+    .catch(function(e){ statusEl.innerHTML = '✗ ' + e.message; });
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderFundamentalsReview(data, rawId) {
+  var section = document.getElementById('fund-review-section');
+  var content = document.getElementById('fund-review-content');
+  if (!section || !content) return;
+  section.style.display = 'block';
+
+  // Build a readable review table of all extracted values
+  var is = data.income_statement || {};
+  var bs = data.balance_sheet || {};
+  var cf = data.cash_flow || {};
+  var ps = data.per_share || {};
+
+  function row(label, val, id) {
+    var display = val !== null && val !== undefined ? val : '—';
+    return '<tr><td style="padding:5px 10px;color:var(--text3);font-size:12px">' + label + '</td>' +
+           '<td style="padding:5px 10px"><input id="fv-' + id + '" type="text" value="' + display +
+           '" style="width:100%;font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"></td></tr>';
+  }
+
+  var html = '<div style="font-size:13px;font-weight:600;color:var(--primary);margin-bottom:8px">' + (data.company_name||'') + ' — ' + (data.period_label||'') + ' (' + (data.audited?'Audited':'Unaudited') + ')</div>';
+  if (data.extraction_notes) html += '<div style="font-size:12px;color:var(--amber);margin-bottom:10px">⚠ Notes: ' + data.extraction_notes + '</div>';
+
+  html += '<table style="width:100%;border-collapse:collapse">';
+  html += '<tr style="background:var(--bg3)"><th colspan="2" style="padding:6px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em">Income Statement (₦ millions)</th></tr>';
+  html += row('Revenue', is.revenue_mn, 'revenue');
+  html += row('Gross Profit', is.gross_profit_mn, 'gross_profit');
+  html += row('EBIT', is.ebit_mn, 'ebit');
+  html += row('EBITDA', is.ebitda_mn, 'ebitda');
+  html += row('PBT', is.pbt_mn, 'pbt');
+  html += row('PAT', is.pat_mn, 'pat');
+  html += row('Interest Expense', is.interest_expense_mn, 'interest');
+  html += row('EPS (kobo)', is.eps_kobo, 'eps');
+  html += row('DPS (kobo)', is.dps_kobo, 'dps');
+
+  html += '<tr style="background:var(--bg3)"><th colspan="2" style="padding:6px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em">Balance Sheet (₦ millions)</th></tr>';
+  html += row('Total Assets', bs.total_assets_mn, 'assets');
+  html += row('Total Equity', bs.total_equity_mn, 'equity');
+  html += row('Total Debt', bs.total_debt_mn, 'debt');
+  html += row('Cash', bs.cash_mn, 'cash');
+  html += row('Current Assets', bs.current_assets_mn, 'curr_assets');
+  html += row('Current Liabilities', bs.current_liabilities_mn, 'curr_liab');
+
+  html += '<tr style="background:var(--bg3)"><th colspan="2" style="padding:6px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em">Cash Flow (₦ millions)</th></tr>';
+  html += row('Operating CF', cf.operating_cf_mn, 'ocf');
+  html += row('Investing CF', cf.investing_cf_mn, 'icf');
+  html += row('Financing CF', cf.financing_cf_mn, 'fcf');
+  html += row('Capex', cf.capex_mn, 'capex');
+
+  html += '<tr style="background:var(--bg3)"><th colspan="2" style="padding:6px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em">Per Share</th></tr>';
+  html += row('BVPS (kobo)', ps.bvps_kobo, 'bvps');
+  html += row('Shares Outstanding (mn)', ps.shares_outstanding_mn, 'shares');
+  html += '</table>';
+
+  content.innerHTML = html;
+}
+
+function verifyFundamentals() {
+  if (!_fundExtracted) return;
+  var svrUrl = SIGNAL_ENGINE.SERVER_URL;
+  var secret = CONFIG.ADMIN_SECRET || '';
+  var btn = document.getElementById('fund-verify-btn');
+  btn.textContent = '⏳ Saving...';
+  btn.disabled = true;
+
+  // Read any edits the admin made in the review form
+  function fv(id) {
+    var el = document.getElementById('fv-' + id);
+    if (!el || el.value === '—' || el.value === '') return null;
+    return parseFloat(el.value) || el.value;
+  }
+
+  var edited = Object.assign({}, _fundExtracted.data);
+  edited.income_statement = {
+    revenue_mn: fv('revenue'), gross_profit_mn: fv('gross_profit'), ebit_mn: fv('ebit'),
+    ebitda_mn: fv('ebitda'), pbt_mn: fv('pbt'), pat_mn: fv('pat'),
+    interest_expense_mn: fv('interest'), eps_kobo: fv('eps'), dps_kobo: fv('dps')
+  };
+  edited.balance_sheet = {
+    total_assets_mn: fv('assets'), total_equity_mn: fv('equity'), total_debt_mn: fv('debt'),
+    cash_mn: fv('cash'), current_assets_mn: fv('curr_assets'), current_liabilities_mn: fv('curr_liab')
+  };
+  edited.cash_flow = {
+    operating_cf_mn: fv('ocf'), investing_cf_mn: fv('icf'), financing_cf_mn: fv('fcf'), capex_mn: fv('capex')
+  };
+  edited.per_share = { bvps_kobo: fv('bvps'), shares_outstanding_mn: fv('shares') };
+
+  fetch(svrUrl + '/admin/verify-fundamentals', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      secret: secret, raw_id: _fundRawId, data: edited,
+      market_cap_mn: _fundExtracted.market_cap_mn,
+      share_price: _fundExtracted.share_price,
+      naira_usd_rate: _fundExtracted.naira_usd_rate
+    })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    btn.textContent = '✓ Verify & Save';
+    btn.disabled = false;
+    if (d.ok) {
+      document.getElementById('fund-upload-status').innerHTML =
+        '✅ <strong>' + d.ticker + ' ' + d.period + '</strong> saved. ROE: ' + (d.roe_pct||'—') + '% · Net Margin: ' + (d.net_margin_pct||'—') + '% · D/E: ' + (d.de_ratio||'—') + 'x';
+      document.getElementById('fund-review-section').style.display = 'none';
+      _fundExtracted = null; _fundRawId = null;
+      // Refresh coverage table
+      var svrUrl2 = SIGNAL_ENGINE.SERVER_URL;
+      var secret2 = CONFIG.ADMIN_SECRET || '';
+      loadFundamentalsStatus(svrUrl2, secret2);
+    } else {
+      alert('Save failed: ' + (d.error || 'Unknown error'));
+    }
+  })
+  .catch(function(e){ btn.textContent = '✓ Verify & Save'; btn.disabled = false; alert('Error: ' + e.message); });
+}
+
+function rejectFundamentals() {
+  if (!_fundRawId) return;
+  var reason = prompt('Reason for rejection (optional):') || 'Rejected by admin';
+  var svrUrl = SIGNAL_ENGINE.SERVER_URL;
+  var secret = CONFIG.ADMIN_SECRET || '';
+  fetch(svrUrl + '/admin/reject-fundamentals', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ secret: secret, raw_id: _fundRawId, reason: reason })
+  })
+  .then(function(){ 
+    document.getElementById('fund-review-section').style.display = 'none';
+    document.getElementById('fund-upload-status').textContent = 'Extraction rejected.';
+    _fundExtracted = null; _fundRawId = null;
+  });
+}
+
 
 </script>
 </body>
