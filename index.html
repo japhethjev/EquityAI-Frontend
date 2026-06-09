@@ -10691,7 +10691,7 @@ function renderFundamentalsPanel() {
   if (!main) return;
 
   var svrUrl = (typeof SIGNAL_ENGINE !== 'undefined') ? SIGNAL_ENGINE.SERVER_URL : '';
-  var secret = (typeof CONFIG !== 'undefined') ? (CONFIG.ADMIN_SECRET || '') : '';
+  var secret = (typeof SIGNAL_ENGINE !== 'undefined' && SIGNAL_ENGINE.ADMIN_SECRET) ? SIGNAL_ENGINE.ADMIN_SECRET : ((typeof CONFIG !== 'undefined') ? (CONFIG.ADMIN_SECRET || '') : '');
 
   // Reset queue state on panel open
   _fundQueue = [];
@@ -10868,7 +10868,7 @@ function renderFundamentalsReview(data, rawId) {
 function verifyFundamentals() {
   if (!_fundExtracted) return;
   var svrUrl = SIGNAL_ENGINE.SERVER_URL;
-  var secret = CONFIG.ADMIN_SECRET || '';
+  var secret = SIGNAL_ENGINE.ADMIN_SECRET || CONFIG.ADMIN_SECRET || '';
   var btn = document.getElementById('fund-verify-btn');
   btn.textContent = '⏳ Saving...';
   btn.disabled = true;
@@ -10916,7 +10916,7 @@ function verifyFundamentals() {
       _fundExtracted = null; _fundRawId = null;
       // Refresh coverage table
       var svrUrl2 = SIGNAL_ENGINE.SERVER_URL;
-      var secret2 = CONFIG.ADMIN_SECRET || '';
+      var secret2 = SIGNAL_ENGINE.ADMIN_SECRET || CONFIG.ADMIN_SECRET || '';
       loadFundamentalsStatus(svrUrl2, secret2);
     } else {
       alert('Save failed: ' + (d.error || 'Unknown error'));
@@ -10929,7 +10929,7 @@ function rejectFundamentals() {
   if (!_fundRawId) return;
   var reason = prompt('Reason for rejection (optional):') || 'Rejected by admin';
   var svrUrl = SIGNAL_ENGINE.SERVER_URL;
-  var secret = CONFIG.ADMIN_SECRET || '';
+  var secret = SIGNAL_ENGINE.ADMIN_SECRET || CONFIG.ADMIN_SECRET || '';
   fetch(svrUrl + '/admin/reject-fundamentals', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -11107,7 +11107,7 @@ function _fetchDriveFileAndExtract(queueItem) {
   if (statusEl) statusEl.innerHTML = '⏳ Downloading from Drive: <strong>' + queueItem.name + '</strong>...';
 
   var svrUrl = SIGNAL_ENGINE.SERVER_URL;
-  var secret = CONFIG.ADMIN_SECRET || '';
+  var secret = SIGNAL_ENGINE.ADMIN_SECRET || CONFIG.ADMIN_SECRET || '';
 
   fetch(svrUrl + '/admin/fetch-drive-pdf', {
     method: 'POST',
@@ -11133,7 +11133,7 @@ function _sendForExtraction(queueItem, base64) {
   var fx       = parseFloat(document.getElementById('fund-fx').value) || null;
   var statusEl = document.getElementById('fund-upload-status');
   var svrUrl   = SIGNAL_ENGINE.SERVER_URL;
-  var secret   = CONFIG.ADMIN_SECRET || '';
+  var secret   = SIGNAL_ENGINE.ADMIN_SECRET || CONFIG.ADMIN_SECRET || '';
 
   if (statusEl) statusEl.innerHTML = '⏳ Sending <strong>' + queueItem.name + '</strong> to Claude (~30s)...';
 
