@@ -1901,6 +1901,9 @@ select.form-input option{background:#ffffff}
         </div>
       </div>
 
+      <!-- Fundamentals Pipeline section — content rendered into .admin-main by renderFundamentalsPanel() -->
+      <div id="admin-fundamentals" class="hidden"></div>
+
     </main>
   </div>
 </div><!-- /admin -->
@@ -8793,13 +8796,14 @@ function adminNav(section,el){
   if(el)el.classList.add('active');
   var sections=['admin-overview','admin-revenue','admin-usage','admin-signals',
                 'admin-users','admin-members','admin-controls','admin-signal-mgmt','admin-reports','admin-logs',
-                'admin-api-keys'];
+                'admin-api-keys','admin-fundamentals'];
   sections.forEach(function(id){var d=document.getElementById(id);if(d)d.classList.add('hidden');});
   var target=document.getElementById('admin-'+section);
   if(target)target.classList.remove('hidden');
   var titles={'overview':'Dashboard','revenue':'Revenue & Subscriptions','usage':'System Usage',
               'signals':'AI Signal Analytics','users':'All Users','members':'Team Members',
-              'controls':'Manual Controls','reports':'Generate Reports','logs':'Activity Logs'};
+              'controls':'Manual Controls','reports':'Generate Reports','logs':'Activity Logs',
+              'fundamentals':'Fundamentals Pipeline'};
   document.getElementById('admin-section-title').textContent=titles[section]||section;
   if(section==='members'){renderMembersList();refreshAdminStats();}
   if(section==='overview'){renderAdminOverview();}
@@ -10677,12 +10681,16 @@ function adminRefreshAll() {
 // ══════════════════════════════════════════════════════════════════
 
 function renderFundamentalsPanel() {
-  var main = document.getElementById('admin-main');
+  // Use the existing admin panel main content area
+  var main = document.querySelector('.admin-main');
+  if (!main) main = document.getElementById('admin-main');
   if (!main) return;
 
   // Load status from server
-  var svrUrl = typeof SIGNAL_ENGINE !== 'undefined' ? SIGNAL_ENGINE.SERVER_URL : '';
-  var secret = typeof CONFIG !== 'undefined' ? (CONFIG.ADMIN_SECRET || '') : '';
+  var svrUrl = (typeof SIGNAL_ENGINE !== 'undefined') ? SIGNAL_ENGINE.SERVER_URL : '';
+  var secret = (typeof CONFIG !== 'undefined') ? (CONFIG.ADMIN_SECRET || '') : '';
+  // Ensure admin-main points to the correct container after section switch
+  var adminMain = document.querySelector('.admin-main');
 
   main.innerHTML = '<div style="max-width:900px">' +
     '<div style="font-size:22px;font-weight:700;color:var(--text);margin-bottom:6px">📂 Fundamentals Pipeline</div>' +
