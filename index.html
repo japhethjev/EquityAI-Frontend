@@ -7641,7 +7641,37 @@ function renderMyDashboard() {
   }
   html += '</div></div>';
 
+  // ── REFERRAL CARD ─────────────────────────────────────────────────
+  html += '<div class="udb-section" id="referral-card-section">'
+    + '<div class="udb-section-hdr">'
+    + '<div class="udb-section-title">🎁 Refer & Earn</div>'
+    + '</div>'
+    + '<div class="udb-section-body" style="padding:16px">'
+    + '<div style="background:linear-gradient(135deg,var(--primary) 0%,#1e40af 100%);border-radius:12px;padding:18px 20px;margin-bottom:14px;color:#fff">'
+    + '<div style="font-size:13px;font-weight:700;margin-bottom:4px">Earn 20% commission per referral</div>'
+    + '<div style="font-size:11px;opacity:.85">Share your link. When someone signs up and pays, you earn ₦2,000 per Pro subscription or ₦40,000 per Enterprise.</div>'
+    + '</div>'
+    // Referral link box
+    + '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Your Referral Link</div>'
+    + '<div style="display:flex;gap:8px;margin-bottom:16px">'
+    + '<div id="ref-link-box" style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--text2);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Loading...</div>'
+    + '<button onclick="copyRefLink()" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">📋 Copy</button>'
+    + '</div>'
+    // Stats row
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px" id="ref-stats-row">'
+    + '<div style="background:var(--bg2);border-radius:8px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:800;color:var(--text)" id="ref-stat-count">—</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Referrals</div></div>'
+    + '<div style="background:var(--bg2);border-radius:8px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:800;color:var(--green)" id="ref-stat-earned">—</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Total Earned</div></div>'
+    + '<div style="background:var(--bg2);border-radius:8px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:800;color:var(--amber)" id="ref-stat-pending">—</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Pending Payout</div></div>'
+    + '</div>'
+    // Referral history table
+    + '<div id="ref-history"></div>'
+    + '<div style="font-size:11px;color:var(--text3);margin-top:10px">Commissions are paid out monthly via bank transfer. Contact <strong>japhethjev@gmail.com</strong> to request payout of pending balance.</div>'
+    + '</div></div>';
+
   el.innerHTML = html;
+
+  // Load referral stats after render
+  if (currentUser && currentUser.id) loadReferralStats(currentUser.id);
   } catch(err) {
     var el2 = document.getElementById('myspace-content');
     if (el2) el2.innerHTML = '<div style="text-align:center;padding:48px 24px;color:var(--text3)">'
@@ -7654,6 +7684,57 @@ function renderMyDashboard() {
 }
 
 // ── HELPER ACTIONS ────────────────────────────────────────────────────
+
+// ── REFERRAL FUNCTIONS ────────────────────────────────────────────────
+function loadReferralStats(userId) {
+  var svrUrl = SIGNAL_ENGINE.SERVER_URL;
+  if (!svrUrl || !userId) return;
+
+  fetch(svrUrl + '/api/referral/stats?user_id=' + userId)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var linkBox = document.getElementById('ref-link-box');
+      if (linkBox) linkBox.textContent = d.referral_link || ('https://equityai.com.ng?ref=' + (d.referral_code || ''));
+
+      var cnt = document.getElementById('ref-stat-count');
+      var earned = document.getElementById('ref-stat-earned');
+      var pending = document.getElementById('ref-stat-pending');
+      if (cnt) cnt.textContent = d.total_referrals || 0;
+      if (earned) earned.textContent = d.total_earned_ngn ? '₦' + Number(d.total_earned_ngn).toLocaleString() : '₦0';
+      if (pending) pending.textContent = d.pending_ngn ? '₦' + Number(d.pending_ngn).toLocaleString() : '₦0';
+
+      // Referral history
+      var hist = document.getElementById('ref-history');
+      if (hist && d.referrals && d.referrals.length > 0) {
+        var rows = d.referrals.map(function(r) {
+          var statusColor = r.status === 'paid_out' ? 'var(--green)' : r.status === 'pending' ? 'var(--amber)' : 'var(--text3)';
+          var planLabel = r.plan === 'enterprise' ? '🏢 Enterprise' : '⭐ Pro';
+          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px">'
+            + '<span style="color:var(--text2)">' + r.email + '</span>'
+            + '<span style="color:var(--text3)">' + planLabel + '</span>'
+            + '<span style="color:var(--green);font-weight:700">+₦' + Number(r.commission).toLocaleString() + '</span>'
+            + '<span style="color:' + statusColor + ';font-weight:600;font-size:11px">' + r.status + '</span>'
+            + '</div>';
+        }).join('');
+        hist.innerHTML = '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Referral History</div>' + rows;
+      }
+    })
+    .catch(function(e) { console.warn('[Referral] Stats load failed:', e.message); });
+}
+
+function copyRefLink() {
+  var linkBox = document.getElementById('ref-link-box');
+  var link = linkBox ? linkBox.textContent : '';
+  if (!link || link === 'Loading...') { toast('Referral link not loaded yet', 'error'); return; }
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(link).then(function() { toast('✓ Referral link copied!', 'success'); });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = link; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    toast('✓ Referral link copied!', 'success');
+  }
+}
+// ── END REFERRAL FUNCTIONS ────────────────────────────────────────────
 function wlOpenStock(ticker) {
   // Switch to watchlist tab and open that stock
   var tab = document.querySelectorAll('.dash-tab')[1];
@@ -8607,7 +8688,8 @@ function initiatePaystack(){
             reference: _ref,
             plan: _plan,
             userId: currentUser ? currentUser.id : '',
-            email: currentUser ? currentUser.email : ''
+            email: currentUser ? currentUser.email : '',
+            referral_code: localStorage.getItem('eq_ref') || ''
           })
         })
         .then(function(r) { return r.json(); })
@@ -8714,6 +8796,11 @@ function _listenForStripeReturn(plan){
 (function(){var p=new URLSearchParams(window.location.search);
   if(p.get('payment')==='success'){var pl=p.get('plan')||'pro';window.history.replaceState({},'',window.location.pathname);setTimeout(function(){if(currentUser)onPaymentSuccess(pl);},2000);}
   else if(p.get('payment')==='cancelled'){window.history.replaceState({},'',window.location.pathname);setTimeout(function(){toast('Payment cancelled.','info');},1000);}
+  // Capture referral code from ?ref= URL param — store in localStorage
+  if(p.get('ref')){
+    localStorage.setItem('eq_ref', p.get('ref'));
+    console.log('[Referral] Code captured:', p.get('ref'));
+  }
 })();
 function onPaymentSuccess(plan){
   closeModal('modal-upgrade');
