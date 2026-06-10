@@ -2076,13 +2076,23 @@ async function sbSaveProfile(profile) {
   var sb = getSupabase();
   if (!sb) return false;
   try {
+    // Generate referral code from user id + email (deterministic, 8-char uppercase hex)
+    var refSeed = (profile.id || '') + (profile.email || '');
+    var refHash = 0;
+    for (var i = 0; i < refSeed.length; i++) {
+      refHash = ((refHash << 5) - refHash) + refSeed.charCodeAt(i);
+      refHash = refHash & refHash;
+    }
+    var refCode = Math.abs(refHash).toString(16).toUpperCase().padStart(8,'0').substring(0,8);
+
     await sb.from('profiles').upsert({
-      id:         profile.id,
-      name:       profile.name,
-      email:      profile.email,
-      plan:       profile.plan || 'free',
-      is_admin:   profile.isAdmin || false,
-      updated_at: new Date().toISOString(),
+      id:            profile.id,
+      name:          profile.name,
+      email:         profile.email,
+      plan:          profile.plan || 'free',
+      is_admin:      profile.isAdmin || false,
+      referral_code: refCode,
+      updated_at:    new Date().toISOString(),
     });
     return true;
   } catch(e) { console.warn('[Supabase] saveProfile failed:', e.message); return false; }
