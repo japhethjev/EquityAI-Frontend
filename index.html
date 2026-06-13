@@ -7654,7 +7654,7 @@ function saveCurrentPortfolio() {
     currency:   (d.market === 'us' || d.market === 'US') ? 'USD' : 'NGN',
     desc:       entry.aiThesis ? entry.aiThesis.substring(0, 120) + '...' : 'AI-generated portfolio',
     holdings:   mpHoldings,
-    active:     false, // don't auto-switch active portfolio
+    active:     true, // make it the active portfolio so it opens immediately
     isAI:       true,
     aiBacktest: entry.backtest,
     aiForward:  entry.forward,
@@ -7662,6 +7662,8 @@ function saveCurrentPortfolio() {
   };
 
   var mpList = mpGetAll();
+  // Deactivate all others before adding this one as active
+  mpList.forEach(function(p){ p.active = false; });
   // Avoid duplicates — remove old version if it exists
   mpList = mpList.filter(function(p){ return p.id !== mpEntry.id; });
   mpList.unshift(mpEntry);
@@ -7699,8 +7701,13 @@ function saveCurrentPortfolio() {
     }, { onConflict: 'id' }).then(function(){}).catch(function(){});
   }
 
-  toast('✓ Portfolio saved to your dashboard', 'success');
-  if (document.getElementById('dtab-myspace').classList.contains('active')) renderMyDashboard();
+  toast('✓ Portfolio saved — opening in 📈 My Portfolio tab with live P&L tracking', 'success');
+  // Auto-navigate to My Portfolio tab so user sees the live P&L immediately
+  setTimeout(function() {
+    var mpTab = document.getElementById('tab-myportfolio');
+    if (mpTab) mpTab.click();
+  }, 800);
+  if (document.getElementById('dtab-myspace') && document.getElementById('dtab-myspace').classList.contains('active')) renderMyDashboard();
 }
 
 // ── SAVED REPORTS HELPERS ─────────────────────────────────────────────
@@ -11667,14 +11674,79 @@ function renderMyPortfolioModule() {
 
   var all  = mpGetAll();
   var port = mpGetActive();
+  var html = '';
 
-  if (!port || !port.holdings || !port.holdings.length) {
-    mpRenderEmpty(root, all);
-    return;
+  // ── PORTFOLIO LIST (always visible at top) ────────────────────────
+  html += '<div class="mp-card" style="margin-bottom:14px">';
+  html += '<div class="mp-card-hdr" style="margin-bottom:' + (all.length ? '12px' : '0') + '">';
+  html += '<div class="mp-card-title">📈 My Portfolios</div>';
+  html += '<button onclick="mpOpenCreateModal()" class="btn btn-gold btn-sm">+ New Portfolio</button>';
+  html += '</div>';
+
+  if (all.length) {
+    all.forEach(function(p) {
+      var isActive = port && p.id === port.id;
+      var pCalc = p.holdings && p.holdings.length ? mpCalcPortfolio(p) : null;
+      var sym = p.currency === 'USD' ? '$' : '₦';
+      var isUp = pCalc ? pCalc.totalPnl >= 0 : true;
+      var aiBadge = p.isAI ? '<span style="background:rgba(26,86,219,.1);color:var(--primary);font-size:9px;font-weight:800;padding:2px 7px;border-radius:20px;margin-left:6px">🤖 AI</span>' : '';
+
+      html += '<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;margin-bottom:6px;background:'+(isActive?'var(--primary)':'var(--bg)')+';border:1.5px solid '+(isActive?'var(--primary)':'var(--border)')+';transition:all .15s">';
+
+      // Left — name + stats
+      html += '<div style="flex:1;min-width:0">';
+      html += '<div style="display:flex;align-items:center;gap:4px;margin-bottom:2px">';
+      html += '<span style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:'+(isActive?'#fff':'var(--text)')+'">'+p.name+'</span>';
+      html += aiBadge;
+      html += '</div>';
+      html += '<div style="font-size:11px;color:'+(isActive?'rgba(255,255,255,.7)':'var(--text3)')+'">'+p.holdings.length+' holdings';
+      if (pCalc) {
+        html += ' · <span style="font-weight:700;color:'+(isActive?(isUp?'#4ade80':'#fca5a5'):(isUp?'var(--green)':'var(--red)'))+'">'+(isUp?'+':'-')+sym+Math.abs(Math.round(pCalc.totalPnl)).toLocaleString()+' ('+(isUp?'+':'')+pCalc.totalPnlPct.toFixed(1)+'%)</span>';
+      } else {
+        html += ' · <span style="color:'+(isActive?'rgba(255,255,255,.5)':'var(--text3)')+'">No holdings yet</span>';
+      }
+      html += '</div></div>';
+
+      // Right — action buttons
+      html += '<div style="display:flex;gap:6px;flex-shrink:0">';
+      if (!isActive) {
+        html += '<button class="mp-switch-btn" data-id="'+p.id+'" style="background:var(--primary);color:#fff;border:none;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">👁 View</button>';
+      } else {
+        html += '<span style="font-size:11px;font-weight:700;color:rgba(255,255,255,.8);padding:6px 10px">✓ Viewing</span>';
+      }
+      html += '<button class="mp-del-btn" data-id="'+p.id+'" style="background:transparent;color:'+(isActive?'rgba(255,255,255,.6)':'var(--red)')+';border:1px solid '+(isActive?'rgba(255,255,255,.3)':'rgba(220,38,38,.2)')+';border-radius:7px;padding:6px 10px;font-size:11px;cursor:pointer">✕</button>';
+      html += '</div>';
+      html += '</div>';
+    });
+  } else {
+    html += '<div style="text-align:center;padding:28px;color:var(--text3)">';
+    html += '<div style="font-size:32px;margin-bottom:8px">📋</div>';
+    html += '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">No portfolios yet</div>';
+    html += '<div style="font-size:12px;margin-bottom:16px">Create your first portfolio or save an AI-generated one.</div>';
+    html += '<button onclick="mpOpenCreateModal()" class="btn btn-gold">+ Create Portfolio</button>';
+    html += '</div>';
   }
 
-  var calc = mpCalcPortfolio(port);
-  mpRenderDashboard(root, port, calc, all);
+  html += '</div>'; // end portfolio list card
+
+  // ── ACTIVE PORTFOLIO DASHBOARD ────────────────────────────────────
+  if (port && port.holdings && port.holdings.length) {
+    var calc = mpCalcPortfolio(port);
+    root.innerHTML = html;
+    mpRenderDashboard(root, port, calc, all);
+    return;
+  } else if (port && (!port.holdings || !port.holdings.length)) {
+    // Portfolio selected but empty
+    html += '<div class="mp-card">';
+    html += '<div style="text-align:center;padding:32px;color:var(--text3)">';
+    html += '<div style="font-size:32px;margin-bottom:8px">📋</div>';
+    html += '<div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px">'+port.name+' is empty</div>';
+    html += '<div style="font-size:12px;margin-bottom:16px">Add your first stock to start tracking live P&L.</div>';
+    html += '<button onclick="mpOpenAddModal()" class="btn btn-gold">+ Add First Stock</button>';
+    html += '</div></div>';
+  }
+
+  root.innerHTML = html;
 }
 
 function mpRenderEmpty(root, all) {
@@ -11772,7 +11844,7 @@ function mpRenderDashboard(root, port, calc, all) {
   html += '</div></div>';
 
   if (all.length > 1) {
-    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">'+portSwitcher+'</div>';
+    // Switcher now handled by the portfolio list above — skip inline pills
   }
 
   html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">';
@@ -11853,7 +11925,13 @@ function mpRenderDashboard(root, port, calc, all) {
   html += '<div></div>';
   html += '</div>';
   html += '</div>';
-  root.innerHTML = html;
+  // Append dashboard below the portfolio list (don't replace the whole root)
+  var dashDiv = document.createElement('div');
+  dashDiv.id = 'mp-dashboard-content';
+  dashDiv.innerHTML = html;
+  var existing = document.getElementById('mp-dashboard-content');
+  if (existing) existing.remove();
+  root.appendChild(dashDiv);
 }
 
 // ── SVG DONUT CHART ───────────────────────────────────────────────────
