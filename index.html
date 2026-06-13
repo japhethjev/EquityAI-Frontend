@@ -11563,7 +11563,36 @@ function renderMyPortfolioModule() {
 }
 
 function mpRenderEmpty(root, all) {
-  var portList = all.map(function(p, i) {
+  var port = mpGetActive();
+
+  // If a portfolio exists but is empty — show controls to add stocks
+  if (port) {
+    var sym = port.currency === 'USD' ? '$' : '₦';
+    var portSwitcher = all.length > 1 ? all.map(function(p) {
+      var isActive = p.id === port.id;
+      return '<button class="mp-switch-btn" data-id="'+p.id+'" style="padding:4px 10px;font-size:11px;font-weight:600;border-radius:20px;border:1.5px solid '+(isActive?'var(--primary)':'var(--border)')+';background:'+(isActive?'var(--primary)':'transparent')+';color:'+(isActive?'#fff':'var(--text3)')+';cursor:pointer">'+p.name+'</button>';
+    }).join('') : '';
+
+    root.innerHTML = '<div class="mp-card">'
+      + '<div class="mp-card-hdr">'
+      + '<div><div class="mp-card-title">📈 ' + port.name + '</div>'
+      + '<div style="font-size:11px;color:var(--text3);margin-top:2px">0 holdings · ' + (port.currency === 'USD' ? 'USD' : 'NGN') + '</div></div>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+      + '<button onclick="mpOpenAddModal()" class="btn btn-gold btn-sm">+ Add Stock</button>'
+      + '<button onclick="mpOpenCreateModal()" class="btn btn-ghost btn-sm dark">+ New Portfolio</button>'
+      + '</div></div>'
+      + (portSwitcher ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">'+portSwitcher+'</div>' : '')
+      + '<div style="text-align:center;padding:40px 24px;color:var(--text3)">'
+      + '<div style="font-size:40px;margin-bottom:12px">📋</div>'
+      + '<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px">Portfolio created — add your first stock</div>'
+      + '<div style="font-size:13px;margin-bottom:20px">Click <strong>+ Add Stock</strong> to enter your holdings. Include the ticker, quantity, and average cost price.</div>'
+      + '<button onclick="mpOpenAddModal()" class="btn btn-gold">+ Add First Stock</button>'
+      + '</div></div>';
+    return;
+  }
+
+  // No portfolio at all — show create option + list of existing ones
+  var portList = all.map(function(p) {
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">'
       + '<span style="font-size:13px;font-weight:600;color:var(--text)">' + p.name + '</span>'
       + '<div style="display:flex;gap:6px">'
@@ -11580,9 +11609,8 @@ function mpRenderEmpty(root, all) {
     + '<div style="font-size:40px;margin-bottom:12px">📋</div>'
     + '<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px">No portfolio selected</div>'
     + '<div style="font-size:13px;margin-bottom:20px">Create a new portfolio or add your existing holdings manually.</div>'
-    + '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">'
     + '<button onclick="mpOpenCreateModal()" class="btn btn-gold">+ Create New Portfolio</button>'
-    + '</div></div></div>';
+    + '</div></div>';
 }
 
 function mpRenderDashboard(root, port, calc, all) {
