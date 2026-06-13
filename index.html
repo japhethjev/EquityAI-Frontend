@@ -6913,13 +6913,345 @@ function portDownload() {
     toast('Portfolio data incomplete. Please regenerate.', 'error');
     return;
   }
-  // Open popup immediately (synchronous — avoids popup blocker)
-  var win = window.open('about:blank', '_blank');
-  if (!win) {
-    // Popup blocked — show inline print modal instead
-    _portDownloadInline();
-    return;
+
+  var d   = _portData;
+  var W   = d.weights;
+  var bt  = d.backtest;
+  var ai  = d.ai || {};
+  var p   = d.portfolio;
+  var COLORS = ['#1a56db','#059669','#d97706','#7c3aed','#0891b2','#dc2626',
+                '#16a34a','#9333ea','#0284c7','#b45309','#db2777','#4f46e5',
+                '#15803d','#c2410c','#0e7490'];
+  var date  = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  var _portIsUS = (d.market === 'us' || d.market === 'US');
+  var _portSym  = _portIsUS ? '$' : '\u20a6';
+  var _isUS     = _portIsUS;
+  var _bmark    = _portIsUS ? 'S&P 500' : 'NGX ASI';
+  var title = ai.portfolioTitle || (_portIsUS ? 'US Optimised Portfolio' : 'NGX Optimised Portfolio');
+  var fwd   = ai.forwardReturn6m || 38;
+  var bear  = ai.forwardReturnBear || Math.round(fwd*0.4);
+  var bull  = ai.forwardReturnBull || Math.round(fwd*1.6);
+  var dy    = ai.expectedDivYield || 4;
+  var rebal = ai.rebalanceFrequency || 'Quarterly';
+
+  // Sector totals
+  var secMap = {};
+  p.forEach(function(s,i){ secMap[s.sec]=(secMap[s.sec]||0)+W[i]; });
+  var secs = Object.entries(secMap).sort(function(a,b){return b[1]-a[1];});
+  var sC = ['#1a56db','#059669','#d97706','#7c3aed','#0891b2','#dc2626','#16a34a','#9333ea'];
+
+  // Factor averages
+  var facs = [
+    {n:'Momentum', v:Math.round(p.reduce(function(s,x){return s+x._score.momentum;},0)/p.length), c:'#1a56db'},
+    {n:'Quality',  v:Math.round(p.reduce(function(s,x){return s+x._score.quality;},0)/p.length),  c:'#059669'},
+    {n:'Growth',   v:Math.round(p.reduce(function(s,x){return s+x._score.growth;},0)/p.length),   c:'#d97706'},
+    {n:'Value',    v:Math.round(p.reduce(function(s,x){return s+x._score.value;},0)/p.length),    c:'#7c3aed'},
+  ];
+
+  var maxCum = Math.max.apply(null, bt.cumPort.concat(bt.cumNGX));
+
+  function cell(v,l,s,c){
+    return '<td style="padding:0 5px 0 0;width:'+(100/5)+'%">'
+      +'<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 8px;text-align:center">'
+      +'<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:'+c+'">'+v+'</div>'
+      +'<div style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-top:2px">'+l+'</div>'
+      +'<div style="font-size:10px;color:#64748b;margin-top:2px">'+s+'</div>'
+      +'</div></td>';
   }
+
+  var H = '<html><head><meta charset="UTF-8"><title>EquityAI Portfolio — '+title+'</title>'
+    +'<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">'
+    +'<style>'
+    +'*{box-sizing:border-box;margin:0;padding:0}'
+    +'body{font-family:"DM Sans",sans-serif;color:#0f172a;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +'.pg{max-width:820px;margin:0 auto;padding:24px}'
+    +'table{border-collapse:collapse}'
+    +'@media print{.np{display:none!important}@page{margin:10mm;size:A4}.brk{page-break-before:always}}'
+    +'</style></head><body><div class="pg">'
+
+    // ── TOOLBAR ────────────────────────────────────────────────────
+    +'<table class="np" width="100%" style="background:#1a56db;border-radius:10px;padding:12px 18px;margin-bottom:18px"><tr>'
+    +'<td style="padding:10px;color:#fff;font-family:Syne,sans-serif;font-size:15px;font-weight:800">Equity<span style="color:#93c5fd">AI</span> Portfolio Report — '+title+'</td>'
+    +'<td style="padding:10px;text-align:right">'
+    +'<button onclick="window.print()" style="background:#fff;color:#1a56db;border:none;padding:9px 20px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;margin-right:6px">🖨 Save as PDF</button>'
+    +'<button onclick="window.close()" style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.3);padding:9px 14px;border-radius:8px;font-size:13px;cursor:pointer">✕ Close</button>'
+    +'</td></tr></table>'
+
+    // ── HEADER ─────────────────────────────────────────────────────
+    +'<table width="100%" style="background:linear-gradient(135deg,#0f2456 0%,#1a56db 55%,#7c3aed 100%);border-radius:14px;margin-bottom:18px"><tr><td style="padding:26px">'
+    +'<table width="100%"><tr>'
+    +'<td style="vertical-align:top">'
+    +'<div style="font-family:Syne,sans-serif;font-size:24px;font-weight:800;color:#fff">Equity<span style="color:#93c5fd">AI</span></div>'
+    +'<div style="font-size:9px;letter-spacing:.12em;color:rgba(255,255,255,.55);text-transform:uppercase;margin-bottom:14px">'+(_portIsUS?'US Stock Intelligence':'Nigerian Stock Intelligence')+'</div>'
+    +'<div style="font-size:9px;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.09em;margin-bottom:4px">Portfolio Research Report</div>'
+    +'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:#fff;margin-bottom:3px">'+title+'</div>'
+    +'<div style="font-size:11px;color:rgba(255,255,255,.7)">'+date+' &nbsp;·&nbsp; '+p.length+' holdings &nbsp;·&nbsp; Rebalance: '+rebal+'</div>'
+    +'</td>'
+    +'<td style="vertical-align:top;text-align:right">'
+    +'<table><tr>'
+    +[{v:'+'+bt.totalReturn+'%',l:'6M Backtest',c:'#4ade80'},{v:'+'+fwd+'%',l:'6M Outlook',c:'#fbbf24'},{v:'+'+bt.alpha+'%',l:'Alpha',c:'#fff'}].map(function(k){
+      return '<td style="padding:4px"><div style="background:rgba(255,255,255,.15);border-radius:10px;padding:11px 14px;text-align:center;min-width:80px">'
+        +'<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:'+k.c+'">'+k.v+'</div>'
+        +'<div style="font-size:9px;color:rgba(255,255,255,.6);text-transform:uppercase;margin-top:2px">'+k.l+'</div>'
+        +'</div></td>';
+    }).join('')
+    +'</tr></table>'
+    +'</td></tr></table>'
+    +'</td></tr></table>'
+
+    // ── THESIS ─────────────────────────────────────────────────────
+    +(ai.investmentThesis?'<div style="background:#eff6ff;border-left:4px solid #1a56db;border-radius:0 10px 10px 0;padding:12px 16px;margin-bottom:18px">'
+    +'<div style="font-size:9px;font-weight:700;color:#1a56db;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Investment Thesis</div>'
+    +'<div style="font-size:12px;color:#334155;line-height:1.75">'+ai.investmentThesis+'</div>'
+    +(ai.analystNote?'<div style="font-size:11px;color:#1a56db;font-weight:600;font-style:italic;margin-top:7px">&#128172; '+ai.analystNote+'</div>':'')
+    +'</div>':'')
+
+    // ── KPIs ───────────────────────────────────────────────────────
+    +'<table width="100%" style="margin-bottom:18px"><tr>'
+    +cell(p.length+' Stocks','Holdings','Diversified portfolio','#1a56db')
+    +cell('+'+bt.totalReturn+'%','6M Backtest','vs '+_bmark+' +'+(bt.spxReturn&&_isUS?bt.spxReturn:bt.ngxReturn||0)+'%','#059669')
+    +cell('+'+bt.alpha+'%','Alpha','Above benchmark','#1a56db')
+    +cell('+'+fwd+'%','6M Outlook','Bear +'+bear+'% · Bull +'+bull+'%','#d97706')
+    +cell(dy+'%','Div Yield','Weighted average','#7c3aed')
+    +'</tr></table>'
+
+    // ── HOLDINGS ───────────────────────────────────────────────────
+    +'<div style="font-family:Syne,sans-serif;font-size:14px;font-weight:700;color:#0f172a;padding-bottom:8px;border-bottom:2px solid #e2e8f0;margin-bottom:12px">&#128202; Portfolio Holdings &amp; Weights</div>'
+    +'<table width="100%" style="margin-bottom:20px;border-collapse:collapse">'
+    +'<thead><tr style="background:#1a56db">'
+    +'<th style="padding:8px 10px;text-align:left;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;border-radius:6px 0 0 0;font-weight:700">#</th>'
+    +'<th style="padding:8px 10px;text-align:left;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;font-weight:700">Ticker / Company</th>'
+    +'<th style="padding:8px 10px;text-align:left;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;font-weight:700">Sector</th>'
+    +'<th style="padding:8px 10px;text-align:right;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;font-weight:700">Price</th>'
+    +'<th style="padding:8px 10px;text-align:right;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;font-weight:700">P/E</th>'
+    +'<th style="padding:8px 10px;text-align:right;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;font-weight:700">ROE</th>'
+    +'<th style="padding:8px 10px;text-align:right;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;font-weight:700">YtD</th>'
+    +'<th style="padding:8px 10px;text-align:right;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;font-weight:700">Signal</th>'
+    +'<th style="padding:8px 10px;text-align:right;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;border-radius:0 6px 0 0;font-weight:700">Weight / Alloc</th>'
+    +'</tr></thead><tbody>'
+    +p.map(function(s,i){
+      var w = W[i];
+      var alloc = Math.round(d.amount*w/100);
+      var sc = s.sig==='BUY'?'#059669':s.sig==='HOLD'?'#d97706':'#3b82f6';
+      var sb = s.sig==='BUY'?'rgba(5,150,105,.1)':s.sig==='HOLD'?'rgba(217,119,6,.1)':'rgba(59,130,246,.1)';
+      var bg = i%2===0?'#fff':'#f8fafc';
+      return '<tr style="background:'+bg+';border-bottom:1px solid #e2e8f0">'
+        +'<td style="padding:9px 10px;font-size:11px;color:#94a3b8;font-weight:700">'+(i+1)+'</td>'
+        +'<td style="padding:9px 10px">'
+        +'<div style="font-size:12px;font-weight:700;color:#0f172a">'+s.t+'</div>'
+        +'<div style="font-size:10px;color:#64748b">'+s.n+'</div>'
+        +'</td>'
+        +'<td style="padding:9px 10px"><span style="background:#eff6ff;color:#1a56db;padding:2px 7px;border-radius:20px;font-size:9px;font-weight:600">'+s.sec+'</span></td>'
+        +'<td style="padding:9px 10px;text-align:right;font-family:DM Mono,monospace;font-size:11px;font-weight:600">&#8358;'+Number(s.price).toLocaleString()+'</td>'
+        +'<td style="padding:9px 10px;text-align:right;font-family:DM Mono,monospace;font-size:11px;color:#64748b">'+s.pe+'x</td>'
+        +'<td style="padding:9px 10px;text-align:right;font-family:DM Mono,monospace;font-size:11px;color:#059669;font-weight:600">'+s.roe+'</td>'
+        +'<td style="padding:9px 10px;text-align:right;font-family:DM Mono,monospace;font-size:11px;color:#059669;font-weight:700">+'+(s.ytd||0)+'%</td>'
+        +'<td style="padding:9px 10px;text-align:right"><span style="background:'+sb+';color:'+sc+';padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700">'+s.sig+'</span></td>'
+        +'<td style="padding:9px 10px;text-align:right">'
+        +'<div style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:#1a56db">'+w+'%</div>'
+        +'<div style="font-size:9px;color:#94a3b8">&#8358;'+alloc.toLocaleString()+'</div>'
+        +'</td></tr>';
+    }).join('')
+    +'</tbody></table>'
+
+    // ── SECTOR + FACTORS ───────────────────────────────────────────
+    +'<table width="100%" style="margin-bottom:20px"><tr>'
+    +'<td style="vertical-align:top;width:50%;padding-right:12px">'
+    +'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:#0f172a;margin-bottom:10px">&#127981; Sector Allocation</div>'
+    +secs.map(function(e,i){
+      return '<div style="margin-bottom:9px">'
+        +'<table width="100%"><tr>'
+        +'<td style="font-size:11px;font-weight:600;color:#334155">'+e[0]+'</td>'
+        +'<td style="text-align:right;font-size:11px;color:#64748b">'+Math.round(e[1])+'%</td>'
+        +'</tr></table>'
+        +'<div style="background:#e2e8f0;border-radius:4px;height:7px;margin-top:3px">'
+        +'<div style="background:'+sC[i%sC.length]+';border-radius:4px;height:7px;width:'+Math.round(e[1])+'%"></div>'
+        +'</div></div>';
+    }).join('')
+    +'</td>'
+    +'<td style="vertical-align:top;width:50%;padding-left:12px">'
+    +'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:#0f172a;margin-bottom:10px">&#9889; JPMorgan Factor Scores</div>'
+    +facs.map(function(f){
+      return '<div style="margin-bottom:9px">'
+        +'<table width="100%"><tr>'
+        +'<td style="font-size:11px;color:#475569">'+f.n+' Factor</td>'
+        +'<td style="text-align:right;font-size:12px;font-weight:800;color:'+f.c+'">'+f.v+'/100</td>'
+        +'</tr></table>'
+        +'<div style="background:#e2e8f0;border-radius:3px;height:6px;margin-top:3px">'
+        +'<div style="background:'+f.c+';border-radius:3px;height:6px;width:'+f.v+'%"></div>'
+        +'</div></div>';
+    }).join('')
+    +'</td></tr></table>'
+
+    // ── BACKTEST CHART ─────────────────────────────────────────────
+    +'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:#0f172a;margin-bottom:10px">&#128200; 6-Month Backtest (Nov 2025 – Apr 2026)</div>'
+    +'<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:18px;margin-bottom:18px">'
+    +'<table width="100%" style="margin-bottom:10px"><tr>'
+    +'<td><span style="display:inline-block;width:12px;height:4px;background:#1a56db;border-radius:2px;vertical-align:middle"></span> <span style="font-size:11px;color:#475569">Portfolio +'+bt.totalReturn+'%</span></td>'
+    +'<td><span style="display:inline-block;width:12px;height:4px;background:#94a3b8;border-radius:2px;vertical-align:middle"></span> <span style="font-size:11px;color:#475569">'+_bmark+' +'+(bt.spxReturn&&_isUS?bt.spxReturn:bt.ngxReturn||0)+'%</span></td>'
+    +'<td style="text-align:right"><span style="color:#059669;font-weight:700;font-size:12px">Alpha: +'+bt.alpha+'%</span></td>'
+    +'</tr></table>'
+    +'<table style="border-collapse:collapse;width:100%"><tr style="vertical-align:bottom">'
+    +bt.months.map(function(m,i){
+      var pH=Math.max(6,Math.round(bt.cumPort[i]/maxCum*70));
+      var nH=Math.max(6,Math.round(bt.cumNGX[i]/maxCum*70));
+      return '<td style="text-align:center;vertical-align:bottom;padding:0 6px">'
+        +'<div style="font-size:8px;color:#1a56db;font-weight:700;margin-bottom:2px">+'+bt.cumPort[i]+'%</div>'
+        +'<div style="display:inline-block;margin-right:2px;width:14px;height:'+pH+'px;background:#1a56db;border-radius:2px 2px 0 0;vertical-align:bottom"></div>'
+        +'<div style="display:inline-block;width:14px;height:'+nH+'px;background:#cbd5e1;border-radius:2px 2px 0 0;vertical-align:bottom"></div>'
+        +'<div style="font-size:8px;color:#94a3b8;margin-top:4px">'+m+'</div>'
+        +'</td>';
+    }).join('')
+    +'</tr></table>'
+    +'<table width="100%" style="margin-top:14px"><tr>'
+    +[{l:'Total Return',v:'+'+bt.totalReturn+'%',c:'#059669'},{l:_bmark+' Benchmark',v:'+'+(_isUS?bt.spxReturn||0:bt.ngxReturn||0)+'%',c:'#64748b'},{l:'Alpha Generated',v:'+'+bt.alpha+'%',c:'#1a56db'},{l:'Sharpe Ratio',v:bt.sharpe,c:'#0f172a'}].map(function(k){
+      return '<td style="padding:0 6px 0 0"><div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:10px;text-align:center">'
+        +'<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:'+k.c+'">'+k.v+'</div>'
+        +'<div style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-top:2px">'+k.l+'</div>'
+        +'</div></td>';
+    }).join('')
+    +'</tr></table></div>'
+
+    // ── FORWARD OUTLOOK ────────────────────────────────────────────
+    +'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:#0f172a;margin-bottom:10px">&#128301; 6-Month Forward Outlook</div>'
+    +'<table width="100%" style="margin-bottom:18px"><tr>'
+    +[{l:'BEAR CASE',v:'+'+bear+'%',p:'25%',bg:'rgba(220,38,38,.05)',bc:'rgba(220,38,38,.2)',tc:'#dc2626'},
+      {l:'BASE CASE',v:'+'+fwd+'%', p:'50%',bg:'rgba(26,86,219,.05)',bc:'rgba(26,86,219,.2)', tc:'#1a56db'},
+      {l:'BULL CASE',v:'+'+bull+'%',p:'25%',bg:'rgba(5,150,105,.05)',bc:'rgba(5,150,105,.2)', tc:'#059669'}].map(function(s){
+      return '<td style="padding:0 8px 0 0"><div style="background:'+s.bg+';border:2px solid '+s.bc+';border-radius:12px;padding:14px;text-align:center">'
+        +'<div style="font-size:9px;font-weight:700;color:'+s.tc+';text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">'+s.l+'</div>'
+        +'<div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:#0f172a">'+s.v+'</div>'
+        +'<div style="font-size:10px;color:#94a3b8;margin-top:4px">Probability: '+s.p+'</div>'
+        +'</div></td>';
+    }).join('')
+    +'</tr></table>'
+    +'<div style="background:#f0fdf4;border:1px solid rgba(5,150,105,.2);border-radius:10px;padding:12px 14px;margin-bottom:18px;font-size:12px;color:#334155">'
+    +((ai && ai.keyRisks && ai.keyRisks.length) ? '<strong style="color:#059669">Key Risks: </strong>' + ai.keyRisks.join(' &nbsp;&#183;&nbsp; ') : (_portIsUS ? '<strong style="color:#059669">Key Risks: </strong>Fed rate trajectory &nbsp;&#183;&nbsp; AI/tech valuation &nbsp;&#183;&nbsp; USD macro volatility' : '<strong style="color:#059669">Key Risks: </strong>FTSE Frontier Sep 2026 &nbsp;&#183;&nbsp; CBN rate stability &nbsp;&#183;&nbsp; Naira volatility'))
+    +'</div>'
+
+    // ── RISK FACTORS ───────────────────────────────────────────────
+    +(ai.riskFactors&&ai.riskFactors.length?
+    '<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:#0f172a;margin-bottom:10px">&#9888;&#65039; Portfolio Risk Factors</div>'
+    +'<table width="100%" style="margin-bottom:18px;border-collapse:collapse">'
+    +ai.riskFactors.map(function(r,i){
+      var sb=r.severity==='HIGH'?'rgba(220,38,38,.1)':r.severity==='LOW'?'rgba(5,150,105,.1)':'rgba(217,119,6,.1)';
+      var sc=r.severity==='HIGH'?'#dc2626':r.severity==='LOW'?'#059669':'#d97706';
+      return '<tr style="background:'+(i%2===0?'#fff':'#f8fafc')+';border-bottom:1px solid #e2e8f0">'
+        +'<td style="padding:10px;font-size:12px;font-weight:700;color:#0f172a;width:28%">'+r.risk+'</td>'
+        +'<td style="padding:10px;font-size:11px;color:#475569">'+r.mitigation+'</td>'
+        +'<td style="padding:10px;text-align:right;width:72px"><span style="background:'+sb+';color:'+sc+';padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700">'+r.severity+'</span></td>'
+        +'</tr>';
+    }).join('')
+    +'</table>':'')
+
+    // ── FOOTER ─────────────────────────────────────────────────────
+    +'<table width="100%" style="background:linear-gradient(135deg,#0f2456,#1a56db);border-radius:12px;margin-bottom:14px"><tr><td style="padding:18px 22px">'
+    +'<table width="100%"><tr>'
+    +'<td><div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#fff">Equity<span style="color:#93c5fd">AI</span></div>'
+    +'<div style="font-size:10px;color:rgba(255,255,255,.6);margin-top:2px">Nigerian Stock Intelligence &nbsp;&#183;&nbsp; equityai.com.ng</div></td>'
+    +'<td style="text-align:right"><div style="font-size:10px;color:rgba(255,255,255,.65);line-height:1.8">'
+    +'<div>'+title+' &nbsp;&#183;&nbsp; '+date+'</div><div>JPMorgan Factor Methodology &nbsp;&#183;&nbsp; AI-Powered Research</div>'
+    +'</div></td></tr></table></td></tr></table>'
+    +'<div style="font-size:10px;color:#94a3b8;line-height:1.75;margin-bottom:20px">'
+    +'<strong>DISCLAIMER:</strong> This AI-generated portfolio is for informational purposes only and does not constitute investment advice. '
+    +'Backtest results are simulated and not indicative of future performance. All investments carry risk. '
+    +'Consult a registered financial advisor before investing. &copy; EquityAI 2026 &nbsp;&#183;&nbsp; equityai.com.ng'
+    +'</div>'
+    +'</div></body></html>';
+
+  // ── STRATEGY: try popup first, fall back to iframe print, then inline ──
+  var _tryPopup = function() {
+    try {
+      var win = window.open('', '_blank', 'width=900,height=700,scrollbars=yes,resizable=yes');
+      if (!win || win.closed || typeof win.document === 'undefined') return false;
+      win.document.open();
+      win.document.write(H);
+      win.document.close();
+      win.focus();
+      return true;
+    } catch(e) { return false; }
+  };
+
+  var _tryIframePrint = function() {
+    try {
+      var existing = document.getElementById('port-print-iframe');
+      if (existing) existing.remove();
+      var iframe = document.createElement('iframe');
+      iframe.id = 'port-print-iframe';
+      iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none';
+      document.body.appendChild(iframe);
+      iframe.contentDocument.open();
+      iframe.contentDocument.write(H);
+      iframe.contentDocument.close();
+      iframe.onload = function() {
+        setTimeout(function() {
+          try {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+          } catch(e) { _portDownloadInline(H); }
+        }, 500);
+      };
+      toast('Print dialog opening — choose "Save as PDF" as your printer', 'info');
+      return true;
+    } catch(e) { return false; }
+  };
+
+  // Try popup first, then iframe, then inline overlay
+  if (!_tryPopup()) {
+    if (!_tryIframePrint()) {
+      _portDownloadInline(H);
+    }
+  }
+}
+
+// Inline overlay fallback when all else is blocked
+function _portDownloadInline(H) {
+  // Remove any existing overlay
+  var old = document.getElementById('port-pdf-overlay');
+  if (old) old.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'port-pdf-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:#fff;overflow-y:auto;-webkit-overflow-scrolling:touch';
+
+  // Toolbar
+  var toolbar = document.createElement('div');
+  toolbar.className = 'np';
+  toolbar.style.cssText = 'background:#1a56db;color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:1;font-family:sans-serif';
+  toolbar.innerHTML = '<strong style="font-size:14px">📊 EquityAI Portfolio Report</strong>'
+    + '<div style="display:flex;gap:8px">'
+    + '<button id="port-pdf-print-btn" style="background:#fff;color:#1a56db;border:none;padding:8px 16px;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer">🖨 Save as PDF</button>'
+    + '<button id="port-pdf-close-btn" style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.3);padding:8px 12px;border-radius:6px;font-size:12px;cursor:pointer">✕ Close</button>'
+    + '</div>';
+  overlay.appendChild(toolbar);
+
+  // Content iframe — renders the full HTML report cleanly
+  var iframe = document.createElement('iframe');
+  iframe.style.cssText = 'width:100%;height:calc(100vh - 50px);border:none';
+  iframe.srcdoc = H;
+  overlay.appendChild(iframe);
+
+  // Add print styles
+  var ps = document.getElementById('port-print-style');
+  if (!ps) {
+    ps = document.createElement('style');
+    ps.id = 'port-print-style';
+    ps.textContent = '@media print { #port-pdf-overlay .np { display:none!important } body > *:not(#port-pdf-overlay) { display:none!important } #port-pdf-overlay { position:static!important; overflow:visible!important } #port-pdf-overlay iframe { height:100%!important } }';
+    document.head.appendChild(ps);
+  }
+
+  document.body.appendChild(overlay);
+
+  // Wire up buttons after DOM insertion
+  document.getElementById('port-pdf-print-btn').addEventListener('click', function() {
+    try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(e) { window.print(); }
+  });
+  document.getElementById('port-pdf-close-btn').addEventListener('click', function() {
+    overlay.remove();
+  });
+
+  toast('📄 Report ready — click "Save as PDF" to download', 'success');
+}
   console.log('[PDF] Generating PDF for', _portData.portfolio.length, 'stocks...');
 
   var d = _portData;
@@ -7166,71 +7498,6 @@ function portDownload() {
     +'Consult a registered financial advisor before investing. &copy; EquityAI 2026 &nbsp;&#183;&nbsp; equityai.com.ng'
     +'</div>'
     +'</div></body></html>';
-
-  // Write directly into the already-open window (avoids popup blocker on second open)
-  if (win && !win.closed) {
-    try {
-      win.document.open();
-      win.document.write(H);
-      win.document.close();
-      win.focus();
-    } catch(e) {
-      // Fallback: blob URL
-      try {
-        win.close();
-        var blob = new Blob([H], { type: 'text/html;charset=utf-8' });
-        var url  = URL.createObjectURL(blob);
-        var newWin = window.open(url, '_blank');
-        if (!newWin) { URL.revokeObjectURL(url); _portDownloadInline(); }
-        else { setTimeout(function(){ URL.revokeObjectURL(url); }, 60000); }
-      } catch(e2) { _portDownloadInline(); }
-    }
-  } else {
-    // win was blocked — use inline overlay
-    _portDownloadInline();
-  }
-}
-
-// Inline fallback when popup is blocked — overlay the report on the page
-function _portDownloadInline() {
-  var overlay = document.createElement('div');
-  overlay.id = 'port-pdf-overlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:#fff;overflow-y:auto;-webkit-overflow-scrolling:touch';
-  
-  // Build same HTML as popup
-  var tempWin = { _html: '' };
-  // Re-use portDownload logic by calling it with a fake win
-  var d = _portData;
-  var W = d.weights;
-  var bt = d.backtest;
-  var ai = d.ai || {};
-  var p  = d.portfolio;
-  var date = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
-  var title = ai.portfolioTitle || (d.market === 'us' ? 'US Optimised Portfolio' : 'NGX Optimised Portfolio');
-  
-  overlay.innerHTML = '<div style="background:#1a56db;color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:1">'
-    + '<strong style="font-family:sans-serif;font-size:14px">\uD83D\uDCCA ' + title + '</strong>'
-    + '<div style="display:flex;gap:8px">'
-    + '<button onclick="window.print()" style="background:#fff;color:#1a56db;border:none;padding:8px 16px;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer">\uD83D\uDDA8 Save as PDF</button>'
-    + '<button id="port-pdf-close-btn" style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.3);padding:8px 12px;border-radius:6px;font-size:12px;cursor:pointer">\u2715 Close</button>'
-    + '</div></div>';
-  // Add close handler after appending (avoids quote escaping issues)
-  document.body.appendChild(overlay);
-  var closeBtn = document.getElementById('port-pdf-close-btn');
-  if (closeBtn) closeBtn.addEventListener('click', function(){ var o=document.getElementById('port-pdf-overlay'); if(o) o.remove(); });
-  // Add print styles to page for when user prints
-  var printStyle = document.getElementById('port-print-style');
-  if (!printStyle) {
-    printStyle = document.createElement('style');
-    printStyle.id = 'port-print-style';
-    printStyle.textContent = '@media print { #port-pdf-overlay .np { display:none!important } #port-pdf-overlay { position:static!important; overflow:visible!important; } body > *:not(#port-pdf-overlay) { display:none!important; } * { -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; } }';
-    document.head.appendChild(printStyle);
-  }
-  overlay.innerHTML += '<div style="padding:16px;max-width:900px;margin:0 auto" id="port-pdf-content">'
-    + (document.getElementById('port-output')?document.getElementById('port-output').innerHTML:'')
-    + '</div>';
-  toast('Report ready — use Share → Print → Save as PDF on mobile', 'info');
-}
 
 // ══════════════════════════════════════════════════════════════════════
 // USER PERSONAL DASHBOARD ENGINE
