@@ -11567,8 +11567,8 @@ function mpRenderEmpty(root, all) {
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">'
       + '<span style="font-size:13px;font-weight:600;color:var(--text)">' + p.name + '</span>'
       + '<div style="display:flex;gap:6px">'
-      + '<button onclick="mpSetActive(\''+p.id+'\')" class="btn btn-ghost btn-sm dark" style="font-size:11px">Open</button>'
-      + '<button onclick="mpDelete(\''+p.id+'\')" style="font-size:11px;color:var(--red);background:transparent;border:1px solid rgba(220,38,38,.2);border-radius:6px;padding:3px 10px;cursor:pointer">Delete</button>'
+      + '<button class="btn btn-ghost btn-sm dark mp-open-btn" data-id="'+p.id+'" style="font-size:11px">Open</button>'
+      + '<button class="mp-del-btn" data-id="'+p.id+'" style="font-size:11px;color:var(--red);background:transparent;border:1px solid rgba(220,38,38,.2);border-radius:6px;padding:3px 10px;cursor:pointer">Delete</button>'
       + '</div></div>';
   }).join('');
 
@@ -11607,7 +11607,8 @@ function mpRenderDashboard(root, port, calc, all) {
 
   // Portfolio list switcher
   var portSwitcher = all.map(function(p) {
-    return '<button onclick="mpSetActive(\''+p.id+'\')" style="padding:5px 12px;font-size:11px;font-weight:600;border-radius:20px;border:1.5px solid '+(p.id===port.id?'var(--primary)':'var(--border)')+';background:'+(p.id===port.id?'var(--primary)':'transparent')+';color:'+(p.id===port.id?'#fff':'var(--text3)')+';cursor:pointer">'+p.name+'</button>';
+    var isActive = p.id === port.id;
+    return '<button class="mp-switch-btn" data-id="'+p.id+'" style="padding:5px 12px;font-size:11px;font-weight:600;border-radius:20px;border:1.5px solid '+(isActive?'var(--primary)':'var(--border)')+';background:'+(isActive?'var(--primary)':'transparent')+';color:'+(isActive?'#fff':'var(--text3)')+';cursor:pointer">'+p.name+'</button>';
   }).join('');
 
   var html = '';
@@ -11679,7 +11680,7 @@ function mpRenderDashboard(root, port, calc, all) {
     var rowBg  = i%2===0 ? 'var(--bg2)' : 'var(--bg)';
     var dotColor = COLORS[i % COLORS.length];
 
-    html += '<div style="display:grid;grid-template-columns:90px 1fr 80px 80px 90px 90px 80px 60px;gap:8px;padding:10px 14px;background:'+rowBg+';border-radius:6px;margin-bottom:3px;cursor:pointer;transition:all .15s" onclick="mpShowHoldingDetail(\''+h.ticker+'\')" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\''+rowBg+'\'">';
+    html += '<div class="mp-holding-data-row" data-ticker="'+h.ticker+'" data-bg="'+rowBg+'" style="display:grid;grid-template-columns:90px 1fr 80px 80px 90px 90px 80px 60px;gap:8px;padding:10px 14px;background:'+rowBg+';border-radius:6px;margin-bottom:3px;cursor:pointer;transition:background .15s">';
     html += '<div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:50%;background:'+dotColor+';flex-shrink:0"></div><span style="font-family:Syne,sans-serif;font-size:12px;font-weight:800;color:var(--text)">'+h.ticker+'</span></div>';
     html += '<div><div style="font-size:11px;font-weight:600;color:var(--text2)">'+h.name+'</div><div style="font-size:9px;color:var(--text3)">'+h.sector+'</div></div>';
     html += '<div style="font-family:DM Mono,monospace;font-size:12px;color:var(--text2)">'+Number(h.qty).toLocaleString()+'</div>';
@@ -11789,6 +11790,7 @@ function mpDrawPnlBars(holdings, COLORS, sym) {
 function mpOpenAddModal(prefill) {
   var all = mpGetAll();
   var port = mpGetActive();
+  var todayDate = new Date().toISOString().substring(0, 10);
 
   // If no portfolio exists yet, create one first
   if (!port) {
@@ -11807,7 +11809,7 @@ function mpOpenAddModal(prefill) {
   overlay.innerHTML = '<div class="mp-modal">'
     + '<div class="mp-modal-hdr">'
     + '<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:var(--text)">+ Add Stock to Portfolio</div>'
-    + '<button onclick="document.getElementById(\'mp-add-overlay\').remove()" style="background:transparent;border:none;font-size:20px;color:var(--text3);cursor:pointer">✕</button>'
+    + '<button class="mp-modal-close" data-modal="mp-add-overlay" style="background:transparent;border:none;font-size:20px;color:var(--text3);cursor:pointer">✕</button>'
     + '</div>'
     + '<div class="mp-modal-body">'
     + '<div class="mp-input-row">'
@@ -11823,12 +11825,12 @@ function mpOpenAddModal(prefill) {
     + '<div class="mp-input-group"><label>Average Cost Price</label><input id="mp-add-cost" type="number" min="0" step="0.01" placeholder="e.g. 28.50"></div>'
     + '</div>'
     + '<div class="mp-input-row">'
-    + '<div class="mp-input-group"><label>Purchase Date</label><input id="mp-add-date" type="date" value="'+new Date().toISOString().split(\'T\')[0]+'"></div>'
+    + '<div class="mp-input-group"><label>Purchase Date</label><input id="mp-add-date" type="date" value="'+todayDate+'"></div>'
     + '<div class="mp-input-group"><label>Notes (optional)</label><input id="mp-add-notes" placeholder="e.g. Dividend play"></div>'
     + '</div>'
     + '<div style="display:flex;gap:8px;margin-top:16px">'
     + '<button onclick="mpAddHolding()" class="btn btn-gold" style="flex:1">✓ Add to Portfolio</button>'
-    + '<button onclick="document.getElementById(\'mp-add-overlay\').remove()" class="btn btn-ghost dark" style="flex:1">Cancel</button>'
+    + '<button class="mp-modal-close btn btn-ghost dark" data-modal="mp-add-overlay" style="flex:1">Cancel</button>'
     + '</div></div></div>';
   document.body.appendChild(overlay);
 
@@ -11909,7 +11911,7 @@ function mpOpenSellModal() {
     return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">'
       + '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text)">'+h.ticker+'</div>'
       + '<div style="font-size:10px;color:var(--text3)">'+h.name+' · '+Number(h.qty).toLocaleString()+' shares · Avg '+sym+h.avgCost+'</div>'
-      + '<div style="font-size:10px;color:'+(isUp?'var(--green)':'var(--red)');'+(isUp?'+':'')+h.pnlPct.toFixed(1)+'%)</div>'
+      + '<div style="font-size:10px;color:'+(isUp?'var(--green)':'var(--red)')+';">'+(isUp?'+':'')+h.pnlPct.toFixed(1)+'%)</div>'
       + '</div>'
       + '<div style="display:flex;align-items:center;gap:6px">'
       + '<input type="number" id="sell-qty-'+h.ticker+'" min="0" max="'+h.qty+'" placeholder="0" style="width:80px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg);color:var(--text)" title="Qty to sell">'
@@ -11923,7 +11925,7 @@ function mpOpenSellModal() {
   overlay.innerHTML = '<div class="mp-modal">'
     + '<div class="mp-modal-hdr">'
     + '<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:var(--text)">✂ Sell / Reduce Positions</div>'
-    + '<button onclick="document.getElementById(\'mp-sell-overlay\').remove()" style="background:transparent;border:none;font-size:20px;color:var(--text3);cursor:pointer">✕</button>'
+    + '<button class="mp-modal-close" data-modal="mp-sell-overlay" style="background:transparent;border:none;font-size:20px;color:var(--text3);cursor:pointer">✕</button>'
     + '</div>'
     + '<div class="mp-modal-body">'
     + '<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Enter the quantity to sell for each stock. Leave blank or 0 to keep the position.</div>'
@@ -11931,7 +11933,7 @@ function mpOpenSellModal() {
     + rows
     + '<div style="display:flex;gap:8px;margin-top:16px">'
     + '<button onclick="mpExecuteSell()" style="flex:1;background:#dc2626;color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer">✓ Execute Sales</button>'
-    + '<button onclick="document.getElementById(\'mp-sell-overlay\').remove()" class="btn btn-ghost dark" style="flex:1">Cancel</button>'
+    + '<button class="mp-modal-close btn btn-ghost dark" data-modal="mp-sell-overlay" style="flex:1">Cancel</button>'
     + '</div></div></div>';
   document.body.appendChild(overlay);
 }
@@ -11983,7 +11985,7 @@ function mpOpenCreateModal() {
   overlay.innerHTML = '<div class="mp-modal">'
     + '<div class="mp-modal-hdr">'
     + '<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:var(--text)">+ Create New Portfolio</div>'
-    + '<button onclick="document.getElementById(\'mp-create-overlay\').remove()" style="background:transparent;border:none;font-size:20px;color:var(--text3);cursor:pointer">✕</button>'
+    + '<button class="mp-modal-close" data-modal="mp-create-overlay" style="background:transparent;border:none;font-size:20px;color:var(--text3);cursor:pointer">✕</button>'
     + '</div>'
     + '<div class="mp-modal-body">'
     + '<div class="mp-input-row">'
@@ -11993,7 +11995,7 @@ function mpOpenCreateModal() {
     + '<div class="mp-input-group" style="margin-bottom:12px"><label>Description (optional)</label><input id="mp-create-desc" placeholder="e.g. Long-term dividend portfolio"></div>'
     + '<div style="display:flex;gap:8px;margin-top:16px">'
     + '<button onclick="mpCreatePortfolio()" class="btn btn-gold" style="flex:1">✓ Create Portfolio</button>'
-    + '<button onclick="document.getElementById(\'mp-create-overlay\').remove()" class="btn btn-ghost dark" style="flex:1">Cancel</button>'
+    + '<button class="mp-modal-close btn btn-ghost dark" data-modal="mp-create-overlay" style="flex:1">Cancel</button>'
     + '</div></div></div>';
   document.body.appendChild(overlay);
 }
@@ -12041,8 +12043,41 @@ function mpDelete(portId) {
   renderMyPortfolioModule();
 }
 
+function mpCloseModal(id) {
+  var el = document.getElementById(id);
+  if (el) el.remove();
+}
+
+// Event delegation — handles all data-attribute driven clicks in My Portfolio
+document.addEventListener('click', function(e) {
+  var t = e.target;
+  // Modal close buttons
+  if (t.classList.contains('mp-modal-close') && t.dataset.modal) { mpCloseModal(t.dataset.modal); return; }
+  // Portfolio open button
+  if (t.classList.contains('mp-open-btn') && t.dataset.id) { mpSetActive(t.dataset.id); return; }
+  // Portfolio delete button
+  if (t.classList.contains('mp-del-btn') && t.dataset.id) { mpDelete(t.dataset.id); return; }
+  // Portfolio switcher pill
+  if (t.classList.contains('mp-switch-btn') && t.dataset.id) { mpSetActive(t.dataset.id); return; }
+  // Holding row click
+  if (t.classList.contains('mp-holding-data-row') || t.closest('.mp-holding-data-row')) {
+    var row = t.classList.contains('mp-holding-data-row') ? t : t.closest('.mp-holding-data-row');
+    if (row && row.dataset.ticker) mpShowHoldingDetail(row.dataset.ticker);
+    return;
+  }
+});
+
+// Mouseover delegation for holding rows
+document.addEventListener('mouseover', function(e) {
+  var row = e.target.classList.contains('mp-holding-data-row') ? e.target : e.target.closest('.mp-holding-data-row');
+  if (row) row.style.background = 'var(--bg3)';
+});
+document.addEventListener('mouseout', function(e) {
+  var row = e.target.classList.contains('mp-holding-data-row') ? e.target : e.target.closest('.mp-holding-data-row');
+  if (row && row.dataset.bg) row.style.background = row.dataset.bg;
+});
+
 function mpShowHoldingDetail(ticker) {
-  // Switch to stock page for this ticker
   var pool = (typeof ALL_STOCKS !== 'undefined' && ALL_STOCKS.length) ? ALL_STOCKS : STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
   var s = pool.find(function(x){ return x.t === ticker; });
   if (s && typeof openStockDetail === 'function') openStockDetail(s);
