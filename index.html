@@ -3705,6 +3705,9 @@ function _initDashboardCore(fresh) {
   // 1. Try to load cached signals from localStorage
   var cacheLoaded = SIGNAL_ENGINE.loadFromStorage();
 
+  // Load portfolios from Supabase in background
+  if (typeof mpLoadFromSupabase === 'function') mpLoadFromSupabase();
+
   if (cacheLoaded) {
     // Cache hit — use cached signals, then check server for fresher version
     buildStockGrid(visibleStocks);
@@ -7627,9 +7630,48 @@ function saveCurrentPortfolio() {
   if (list.length > 20) list = list.slice(0, 20); // keep last 20
   svpSave(list);
 
-  // Persist to Supabase
+  // ── Also add to My Portfolio tab (user_portfolios) for live P&L tracking ──
+  // Convert AI portfolio holdings into manual portfolio format
+  var mpHoldings = d.portfolio.map(function(s, i) {
+    var allocAmount = d.amount ? Math.round(d.amount * d.weights[i] / 100) : 0;
+    var shareQty    = (allocAmount > 0 && s.price > 0) ? Math.round(allocAmount / s.price) : 0;
+    return {
+      ticker:      s.t,
+      name:        s.n,
+      sector:      s.sec || s.sector || 'Unknown',
+      qty:         shareQty > 0 ? shareQty : d.weights[i], // fallback to weight% if no amount
+      avgCost:     s.price,
+      purchaseDate:new Date().toISOString().substring(0, 10),
+      notes:       'AI Portfolio · ' + (d.ai ? d.ai.portfolioTitle || '' : '') + ' · Weight: ' + d.weights[i] + '%',
+      addedAt:     new Date().toISOString(),
+      aiWeight:    d.weights[i] // preserve original AI weight
+    };
+  });
+
+  var mpEntry = {
+    id:         'ai_' + entry.id,
+    name:       entry.name + ' (AI)',
+    currency:   (d.market === 'us' || d.market === 'US') ? 'USD' : 'NGN',
+    desc:       entry.aiThesis ? entry.aiThesis.substring(0, 120) + '...' : 'AI-generated portfolio',
+    holdings:   mpHoldings,
+    active:     false, // don't auto-switch active portfolio
+    isAI:       true,
+    aiBacktest: entry.backtest,
+    aiForward:  entry.forward,
+    createdAt:  new Date().toISOString()
+  };
+
+  var mpList = mpGetAll();
+  // Avoid duplicates — remove old version if it exists
+  mpList = mpList.filter(function(p){ return p.id !== mpEntry.id; });
+  mpList.unshift(mpEntry);
+  mpSaveAll(mpList);
+
+  // Persist to Supabase (both tables for cross-device sync)
   if (getSupabase() && currentUser && !currentUser.isAdmin) {
-    getSupabase().from('saved_portfolios').insert({
+    var sb = getSupabase();
+    // Existing saved_portfolios table
+    sb.from('saved_portfolios').insert({
       user_id:      currentUser.id,
       name:         entry.name,
       objective:    entry.objective,
@@ -7641,6 +7683,20 @@ function saveCurrentPortfolio() {
       ai_thesis:    entry.aiThesis,
       factor_scores: entry.factorScores
     }).then(function(){}).catch(function(){});
+    // ai_portfolios table (full data)
+    sb.from('ai_portfolios').upsert({
+      id:         entry.id,
+      user_id:    currentUser.id,
+      name:       entry.name,
+      market:     _portData.market || 'NGX',
+      objective:  entry.objective,
+      risk_level: entry.riskLevel,
+      amount:     entry.amount,
+      portfolio:  _portData.portfolio,
+      weights:    _portData.weights,
+      backtest:   _portData.backtest,
+      ai_data:    _portData.ai,
+    }, { onConflict: 'id' }).then(function(){}).catch(function(){});
   }
 
   toast('✓ Portfolio saved to your dashboard', 'success');
@@ -11493,8 +11549,68 @@ function _sendForExtraction(queueItem, base64) {
 
 var MP_KEY = 'equityai_myportfolios_v1';
 
-function mpGetAll() { try { return JSON.parse(localStorage.getItem(MP_KEY)||'[]'); } catch(e){ return []; } }
-function mpSaveAll(list) { localStorage.setItem(MP_KEY, JSON.stringify(list)); }
+function mpGetAll() {
+  try { return JSON.parse(localStorage.getItem(MP_KEY)||'[]'); } catch(e){ return []; }
+}
+
+function mpSaveAll(list) {
+  // Always save to localStorage first (instant)
+  localStorage.setItem(MP_KEY, JSON.stringify(list));
+  // Then sync to Supabase in background
+  if (!currentUser || !currentUser.id) return;
+  var sb = getSupabase ? getSupabase() : null;
+  if (!sb) return;
+  var userId = currentUser.id;
+  // Upsert all portfolios for this user
+  list.forEach(function(port) {
+    sb.from('user_portfolios').upsert({
+      id:          port.id,
+      user_id:     userId,
+      name:        port.name,
+      currency:    port.currency || 'NGN',
+      description: port.desc || '',
+      holdings:    port.holdings || [],
+      active:      !!port.active,
+      is_ai:       !!port.isAI,
+      ai_backtest: port.aiBacktest || null,
+      ai_forward:  port.aiForward || null,
+      updated_at:  new Date().toISOString()
+    }, { onConflict: 'id' }).then(function(res) {
+      if (res.error) console.warn('[Portfolio] Supabase save failed:', res.error.message);
+    });
+  });
+}
+
+function mpLoadFromSupabase() {
+  if (!currentUser || !currentUser.id) return;
+  var sb = getSupabase ? getSupabase() : null;
+  if (!sb) return;
+  sb.from('user_portfolios').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false })
+    .then(function(res) {
+      if (res.error || !res.data || !res.data.length) return;
+      // Merge with localStorage — Supabase wins on conflict
+      var remote = res.data.map(function(r) {
+        return {
+          id:         r.id,
+          name:       r.name,
+          currency:   r.currency || 'NGN',
+          desc:       r.description || '',
+          holdings:   r.holdings || [],
+          active:     r.active,
+          isAI:       r.is_ai || false,
+          aiBacktest: r.ai_backtest || null,
+          aiForward:  r.ai_forward || null,
+          createdAt:  r.created_at
+        };
+      });
+      localStorage.setItem(MP_KEY, JSON.stringify(remote));
+      console.log('[Portfolio] Loaded', remote.length, 'portfolio(s) from Supabase');
+      // Re-render if on portfolio tab
+      var tab = document.getElementById('dtab-myportfolio');
+      if (tab && tab.classList.contains('active')) renderMyPortfolioModule();
+    })
+    .catch(function(e){ console.warn('[Portfolio] Supabase load failed:', e.message); });
+}
 
 function mpGetActive() {
   var all = mpGetAll();
@@ -11502,17 +11618,16 @@ function mpGetActive() {
 }
 
 function mpGetLivePrice(ticker) {
-  // Try NGX first, then US
-  var pool = (typeof ALL_STOCKS !== 'undefined' && ALL_STOCKS.length) ? ALL_STOCKS
-           : STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
-  var s = pool.find(function(x){ return x.t === ticker; });
+  // NGX first, then US
+  var s = (typeof STOCKS !== 'undefined' ? STOCKS : []).find(function(x){ return x.t === ticker; });
+  if (!s && typeof US_STOCKS !== 'undefined') s = US_STOCKS.find(function(x){ return x.t === ticker; });
   return s ? s.price : 0;
 }
 
 function mpGetSignal(ticker) {
-  var pool = (typeof ALL_STOCKS !== 'undefined' && ALL_STOCKS.length) ? ALL_STOCKS
-           : STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
-  var s = pool.find(function(x){ return x.t === ticker; });
+  // NGX first, then US
+  var s = (typeof STOCKS !== 'undefined' ? STOCKS : []).find(function(x){ return x.t === ticker; });
+  if (!s && typeof US_STOCKS !== 'undefined') s = US_STOCKS.find(function(x){ return x.t === ticker; });
   return s ? (s.sig || 'HOLD') : 'HOLD';
 }
 
@@ -11641,96 +11756,103 @@ function mpRenderDashboard(root, port, calc, all) {
 
   var html = '';
 
-  // ── HEADER ──
-  html += '<div class="mp-card">';
-  html += '<div class="mp-card-hdr">';
-  html += '<div>';
-  html += '<div class="mp-card-title">📈 ' + port.name + '</div>';
-  html += '<div style="font-size:11px;color:var(--text3);margin-top:3px">'+calc.holdings.length+' holdings · Last updated just now</div>';
+  // ── HEADER CARD ──────────────────────────────────────────────────
+  html += '<div class="mp-card" style="background:linear-gradient(135deg,var(--primary) 0%,#1e40af 100%);border:none;margin-bottom:14px">';
+  html += '<div class="mp-card-hdr" style="margin-bottom:12px">';
+  html += '<div><div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">';
+  html += '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#fff">📈 '+port.name+'</div>';
+  if (port.isAI) html += '<span style="background:rgba(255,255,255,.2);color:#fff;font-size:9px;font-weight:800;padding:2px 8px;border-radius:20px;letter-spacing:.05em">🤖 AI GENERATED</span>';
   html += '</div>';
+  html += '<div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:2px">'+calc.holdings.length+' holdings · '+(port.currency||'NGN')+' · Live prices</div></div>';
   html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
-  html += '<button onclick="mpOpenAddModal()" class="btn btn-gold btn-sm">+ Add Stock</button>';
-  html += '<button onclick="mpOpenSellModal()" class="btn btn-ghost btn-sm dark">✂ Sell / Reduce</button>';
-  html += '<button onclick="mpOpenCreateModal()" class="btn btn-ghost btn-sm dark">+ New Portfolio</button>';
-  html += '<button onclick="mpGenerateReport()" style="background:linear-gradient(135deg,#1a56db,#7c3aed);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">📊 Performance Report</button>';
+  html += '<button onclick="mpOpenAddModal()" style="background:rgba(255,255,255,.2);color:#fff;border:1.5px solid rgba(255,255,255,.4);border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">+ Add Stock</button>';
+  html += '<button onclick="mpOpenSellModal()" style="background:rgba(255,255,255,.15);color:#fff;border:1.5px solid rgba(255,255,255,.3);border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">✂ Sell</button>';
+  html += '<button onclick="mpOpenCreateModal()" style="background:rgba(255,255,255,.1);color:#fff;border:1.5px solid rgba(255,255,255,.2);border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer">+ New</button>';
+  html += '<button onclick="mpGenerateReport()" style="background:#fff;color:var(--primary);border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:800;cursor:pointer">📊 Report</button>';
   html += '</div></div>';
 
-  // Portfolio switcher pills
   if (all.length > 1) {
-    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">'+portSwitcher+'</div>';
+    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">'+portSwitcher+'</div>';
   }
 
-  // ── KPI STRIP ──
-  html += '<div class="mp-kpi-grid">';
-  html += '<div class="mp-kpi"><div class="mp-kpi-val">'+fmtFull(calc.totalValue)+'</div><div class="mp-kpi-lbl">Portfolio Value</div><div class="mp-kpi-sub">Live market prices</div></div>';
-  html += '<div class="mp-kpi"><div class="mp-kpi-val">'+fmtFull(calc.totalCost)+'</div><div class="mp-kpi-lbl">Total Cost</div><div class="mp-kpi-sub">Avg cost × qty</div></div>';
-  html += '<div class="mp-kpi"><div class="mp-kpi-val" style="color:'+pnlColor+'">'+pnlSign+fmtFull(calc.totalPnl)+'</div><div class="mp-kpi-lbl">Unrealised P&L</div><div class="mp-kpi-sub '+(isUp?'up':'dn')+'">'+pnlSign+calc.totalPnlPct.toFixed(2)+'%</div></div>';
-  html += '<div class="mp-kpi"><div class="mp-kpi-val">'+calc.holdings.filter(function(h){return h.pnl>=0;}).length+'/'+calc.holdings.length+'</div><div class="mp-kpi-lbl">Winning Positions</div><div class="mp-kpi-sub">Above cost basis</div></div>';
-  html += '</div>';
-  html += '</div>'; // end header card
+  html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">';
+  var kpiData = [
+    { v: fmtFull(calc.totalValue), l: 'Portfolio Value', s: 'Live prices', c: '#fff', bg: 'rgba(255,255,255,.15)' },
+    { v: fmtFull(calc.totalCost),  l: 'Cost Basis',      s: 'Invested',    c: '#93c5fd', bg: 'rgba(255,255,255,.1)' },
+    { v: (isUp?'+':'-')+fmtFull(calc.totalPnl), l: 'Unrealised P&L', s: (isUp?'+':'')+calc.totalPnlPct.toFixed(2)+'% return', c: isUp?'#4ade80':'#fca5a5', bg: isUp?'rgba(74,222,128,.15)':'rgba(252,165,165,.15)' },
+    port.isAI && port.aiBacktest
+      ? { v: '+'+port.aiBacktest.totalReturn+'%', l: 'AI Backtest', s: 'Alpha: +'+port.aiBacktest.alpha+'%', c: '#fbbf24', bg: 'rgba(251,191,36,.15)' }
+      : { v: calc.holdings.filter(function(h){return h.pnl>=0;}).length+'/'+calc.holdings.length, l: 'Winners', s: 'Above cost', c: '#fff', bg: 'rgba(255,255,255,.1)' },
+  ];
+  kpiData.forEach(function(k) {
+    html += '<div style="background:'+k.bg+';border-radius:10px;padding:12px 14px">';
+    html += '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:'+k.c+';margin-bottom:2px">'+k.v+'</div>';
+    html += '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.04em">'+k.l+'</div>';
+    html += '<div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:1px">'+k.s+'</div>';
+    html += '</div>';
+  });
+  html += '</div></div>';
 
-  // ── CHARTS ROW ──
-  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">';
-
-  // Allocation donut (SVG)
+  // ── CHARTS ROW ───────────────────────────────────────────────────
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">';
   html += '<div class="mp-card" style="margin-bottom:0">';
   html += '<div class="mp-card-title" style="margin-bottom:14px">🥧 Allocation by Value</div>';
   html += mpDrawDonut(calc.holdings, COLORS, sym);
   html += '</div>';
-
-  // P&L bar chart
   html += '<div class="mp-card" style="margin-bottom:0">';
-  html += '<div class="mp-card-title" style="margin-bottom:14px">📊 P&L by Position</div>';
+  html += '<div class="mp-card-title" style="margin-bottom:12px">📊 P&L by Position</div>';
   html += mpDrawPnlBars(calc.holdings, COLORS, sym);
   html += '</div>';
+  html += '</div>';
 
-  html += '</div>'; // end charts row
-
-  // ── HOLDINGS TABLE ──
+  // ── HOLDINGS TABLE ───────────────────────────────────────────────
   html += '<div class="mp-card">';
   html += '<div class="mp-card-hdr"><div class="mp-card-title">📋 Holdings</div>'
-    + '<span style="font-size:11px;color:var(--text3)">Click a row to view details</span></div>';
+    + '<span style="font-size:11px;color:var(--text3)">Click row for stock details</span></div>';
 
-  // Table header
-  html += '<div style="display:grid;grid-template-columns:90px 1fr 80px 80px 90px 90px 80px 60px;gap:8px;padding:8px 14px;background:var(--primary);border-radius:8px;margin-bottom:4px">';
-  ['Ticker','Company / Sector','Qty','Avg Cost','Live Price','Value','P&L','Signal'].forEach(function(h){
-    html += '<div style="font-size:9px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.05em">'+h+'</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1.2fr 1fr;gap:8px;padding:9px 16px;background:var(--primary);border-radius:8px;margin-bottom:6px">';
+  ['Stock','Qty · Avg Cost','Live Price','Value','P&L','Signal'].forEach(function(hdr){
+    html += '<div style="font-size:9px;font-weight:700;color:rgba(255,255,255,.85);text-transform:uppercase;letter-spacing:.06em">'+hdr+'</div>';
   });
   html += '</div>';
 
   calc.holdings.forEach(function(h, i) {
-    var isHUp  = h.pnl >= 0;
-    var hColor = isHUp ? 'var(--green)' : 'var(--red)';
-    var hSign  = isHUp ? '+' : '-';
-    var sig    = mpGetSignal(h.ticker);
-    var sigBg  = sig==='BUY'?'rgba(5,150,105,.15)':sig==='HOLD'?'rgba(217,119,6,.15)':'rgba(239,68,68,.15)';
-    var sigCl  = sig==='BUY'?'var(--green)':sig==='HOLD'?'var(--amber)':'var(--red)';
-    var rowBg  = i%2===0 ? 'var(--bg2)' : 'var(--bg)';
-    var dotColor = COLORS[i % COLORS.length];
+    var isHUp   = h.pnl >= 0;
+    var hColor  = isHUp ? 'var(--green)' : 'var(--red)';
+    var pnlBg   = isHUp ? 'rgba(5,150,105,.08)' : 'rgba(220,38,38,.08)';
+    var sig     = mpGetSignal(h.ticker);
+    var sigBg   = sig==='BUY'?'rgba(5,150,105,.15)':sig==='HOLD'?'rgba(217,119,6,.15)':'rgba(239,68,68,.15)';
+    var sigCl   = sig==='BUY'?'var(--green)':sig==='HOLD'?'var(--amber)':'var(--red)';
+    var rowBg   = i%2===0 ? 'var(--bg2)' : 'var(--bg)';
+    var dotColor= COLORS[i%COLORS.length];
+    var priceDiff = h.avgCost > 0 ? ((h.livePrice - h.avgCost)/h.avgCost*100) : 0;
 
-    html += '<div class="mp-holding-data-row" data-ticker="'+h.ticker+'" data-bg="'+rowBg+'" style="display:grid;grid-template-columns:90px 1fr 80px 80px 90px 90px 80px 60px;gap:8px;padding:10px 14px;background:'+rowBg+';border-radius:6px;margin-bottom:3px;cursor:pointer;transition:background .15s">';
-    html += '<div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:50%;background:'+dotColor+';flex-shrink:0"></div><span style="font-family:Syne,sans-serif;font-size:12px;font-weight:800;color:var(--text)">'+h.ticker+'</span></div>';
-    html += '<div><div style="font-size:11px;font-weight:600;color:var(--text2)">'+h.name+'</div><div style="font-size:9px;color:var(--text3)">'+h.sector+'</div></div>';
-    html += '<div style="font-family:DM Mono,monospace;font-size:12px;color:var(--text2)">'+Number(h.qty).toLocaleString()+'</div>';
-    html += '<div style="font-family:DM Mono,monospace;font-size:12px;color:var(--text2)">'+sym+Number(h.avgCost).toLocaleString()+'</div>';
-    html += '<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;color:var(--text)">'+sym+Number(h.livePrice).toLocaleString()+'</div>';
-    html += '<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;color:var(--primary)">'+sym+Number(Math.round(h.value)).toLocaleString()+'</div>';
-    html += '<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;color:'+hColor+'">'+(isHUp?'+':'-')+sym+Math.abs(Math.round(h.pnl)).toLocaleString()+'<div style="font-size:9px">'+(h.pnlPct>=0?'+':'')+h.pnlPct.toFixed(1)+'%</div></div>';
-    html += '<div><span style="background:'+sigBg+';color:'+sigCl+';font-size:9px;font-weight:700;padding:2px 8px;border-radius:20px">'+sig+'</span></div>';
+    html += '<div class="mp-holding-data-row" data-ticker="'+h.ticker+'" data-bg="'+rowBg+'" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1.2fr 1fr;gap:8px;padding:12px 16px;background:'+rowBg+';border-radius:8px;margin-bottom:4px;cursor:pointer;transition:background .15s;border-left:3px solid '+dotColor+'">';
+    html += '<div><div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:var(--text);margin-bottom:2px">'+h.ticker+'</div>'
+      + '<div style="font-size:10px;color:var(--text3)">'+h.name+'</div>'
+      + '<span style="background:rgba(26,86,219,.1);color:var(--primary);font-size:8px;font-weight:700;padding:1px 5px;border-radius:10px">'+h.sector+'</span></div>';
+    html += '<div><div style="font-family:DM Mono,monospace;font-size:12px;font-weight:600;color:var(--text)">'+Number(h.qty).toLocaleString()+'</div>'
+      + '<div style="font-size:10px;color:var(--text3)">@ '+sym+Number(h.avgCost).toLocaleString()+'</div></div>';
+    html += '<div><div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:var(--text)">'+sym+Number(h.livePrice).toLocaleString()+'</div>'
+      + '<div style="font-size:10px;color:'+(priceDiff>=0?'var(--green)':'var(--red)')+'">'+(priceDiff>=0?'▲':'▼')+Math.abs(priceDiff).toFixed(1)+'% vs cost</div></div>';
+    html += '<div><div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:var(--primary)">'+sym+Number(Math.round(h.value)).toLocaleString()+'</div>'
+      + '<div style="font-size:10px;color:var(--text3)">'+(h.value/calc.totalValue*100).toFixed(1)+'% of port</div></div>';
+    html += '<div style="background:'+pnlBg+';border-radius:6px;padding:6px 8px">'
+      + '<div style="font-family:DM Mono,monospace;font-size:13px;font-weight:800;color:'+hColor+'">'+(isHUp?'+':'-')+sym+Math.abs(Math.round(h.pnl)).toLocaleString()+'</div>'
+      + '<div style="font-size:11px;font-weight:700;color:'+hColor+'">'+(h.pnlPct>=0?'+':'')+h.pnlPct.toFixed(2)+'%</div></div>';
+    html += '<div><span style="background:'+sigBg+';color:'+sigCl+';font-size:10px;font-weight:800;padding:4px 10px;border-radius:20px;display:inline-block">'+sig+'</span></div>';
     html += '</div>';
   });
 
-  // Total row
-  html += '<div style="display:grid;grid-template-columns:90px 1fr 80px 80px 90px 90px 80px 60px;gap:8px;padding:10px 14px;background:var(--primary);border-radius:6px;margin-top:4px">';
-  html += '<div style="font-size:11px;font-weight:800;color:#fff;grid-column:1/4">TOTAL</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1.2fr 1fr;gap:8px;padding:12px 16px;background:var(--primary);border-radius:8px;margin-top:6px">';
+  html += '<div style="font-family:Syne,sans-serif;font-size:12px;font-weight:800;color:#fff">TOTAL</div>';
   html += '<div></div><div></div>';
-  html += '<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#fff">'+sym+Number(Math.round(calc.totalValue)).toLocaleString()+'</div>';
-  html += '<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:'+(isUp?'#4ade80':'#fca5a5')+'">'+(isUp?'+':'-')+sym+Math.abs(Math.round(calc.totalPnl)).toLocaleString()+' ('+pnlSign+calc.totalPnlPct.toFixed(1)+'%)</div>';
+  html += '<div style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:#fff">'+sym+Number(Math.round(calc.totalValue)).toLocaleString()+'</div>';
+  html += '<div><div style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:'+(isUp?'#4ade80':'#fca5a5')+'">'+(isUp?'+':'-')+sym+Math.abs(Math.round(calc.totalPnl)).toLocaleString()+'</div>'
+    + '<div style="font-size:11px;color:'+(isUp?'#4ade80':'#fca5a5')+';font-weight:700">'+pnlSign+calc.totalPnlPct.toFixed(2)+'%</div></div>';
   html += '<div></div>';
   html += '</div>';
-
-  html += '</div>'; // end holdings card
-
+  html += '</div>';
   root.innerHTML = html;
 }
 
@@ -11788,30 +11910,34 @@ function mpDrawDonut(holdings, COLORS, sym) {
 // ── P&L BAR CHART ─────────────────────────────────────────────────────
 function mpDrawPnlBars(holdings, COLORS, sym) {
   var maxAbs = Math.max.apply(null, holdings.map(function(h){ return Math.abs(h.pnlPct); })) || 1;
-  var barH = 22, gap = 6, totalH = holdings.length * (barH + gap);
 
-  var bars = holdings.map(function(h, i) {
+  var rows = holdings.map(function(h, i) {
     var pct    = h.pnlPct;
-    var color  = pct >= 0 ? '#059669' : '#dc2626';
-    var barW   = Math.abs(pct) / maxAbs * 48; // max 48% of SVG width each side
-    var midX   = 50; // centre %
-    var xStart = pct >= 0 ? midX : (midX - barW);
-    var y      = i * (barH + gap);
-    var sign   = pct >= 0 ? '+' : '';
-    return '<g>'
-      + '<text x="0" y="'+(y+barH*0.7)+'" style="font-size:10px;font-weight:800;fill:var(--text);font-family:Syne,sans-serif">'+h.ticker+'</text>'
-      + '<rect x="'+xStart+'%" y="'+y+'" width="'+barW+'%" height="'+barH+'" rx="3" fill="'+color+'" opacity="0.85"/>'
-      + '<text x="'+(pct>=0?(midX+barW+1):(midX-barW-1))+'%" y="'+(y+barH*0.7)+'" text-anchor="'+(pct>=0?'start':'end')+'" style="font-size:9px;font-weight:700;fill:'+color+';font-family:DM Mono,monospace">'+sign+pct.toFixed(1)+'%</text>'
-      + '</g>';
+    var isUp   = pct >= 0;
+    var color  = isUp ? '#059669' : '#dc2626';
+    var bgColor= isUp ? 'rgba(5,150,105,.1)' : 'rgba(220,38,38,.1)';
+    var barW   = Math.abs(pct) / maxAbs * 100;
+    var sign   = isUp ? '+' : '';
+    var pnlStr = (isUp?'+':'-') + sym + Math.abs(Math.round(h.pnl)).toLocaleString();
+
+    return '<div style="margin-bottom:10px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
+      + '<div style="display:flex;align-items:center;gap:6px">'
+      + '<div style="width:8px;height:8px;border-radius:50%;background:'+COLORS[i%COLORS.length]+';flex-shrink:0"></div>'
+      + '<span style="font-family:Syne,sans-serif;font-size:12px;font-weight:800;color:var(--text)">'+h.ticker+'</span>'
+      + '</div>'
+      + '<div style="text-align:right">'
+      + '<span style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;color:'+color+'">'+sign+pct.toFixed(1)+'%</span>'
+      + '<span style="font-size:10px;color:var(--text3);margin-left:6px">'+pnlStr+'</span>'
+      + '</div>'
+      + '</div>'
+      + '<div style="background:var(--border);border-radius:4px;height:10px;position:relative;overflow:hidden">'
+      + '<div style="position:absolute;top:0;left:0;height:10px;width:'+barW+'%;background:'+color+';border-radius:4px;transition:width .4s ease"></div>'
+      + '</div>'
+      + '</div>';
   }).join('');
 
-  // Centre line
-  var centreLine = '<line x1="50%" y1="0" x2="50%" y2="'+totalH+'" stroke="var(--border)" stroke-width="1.5"/>';
-
-  return '<div style="overflow-x:auto">'
-    + '<svg width="100%" height="'+Math.max(120,totalH+10)+'" viewBox="0 0 100 '+Math.max(120,totalH+10)+'" preserveAspectRatio="none" style="min-width:280px">'
-    + centreLine + bars
-    + '</svg></div>';
+  return '<div style="padding:4px 0">'+rows+'</div>';
 }
 
 // ── ADD STOCK MODAL ───────────────────────────────────────────────────
@@ -11865,15 +11991,16 @@ function mpOpenAddModal(prefill) {
   // Auto-detect ticker info
   document.getElementById('mp-add-ticker').addEventListener('input', function() {
     var t = this.value.toUpperCase();
-    var pool = (typeof ALL_STOCKS !== 'undefined' && ALL_STOCKS.length) ? ALL_STOCKS : STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
-    var s = pool.find(function(x){ return x.t === t; });
+    // Search NGX first, then US — prevents US tickers overriding NGX ones
+    var s = (typeof STOCKS !== 'undefined' ? STOCKS : []).find(function(x){ return x.t === t; });
+    if (!s && typeof US_STOCKS !== 'undefined') s = US_STOCKS.find(function(x){ return x.t === t; });
     if (s) {
       var nameEl = document.getElementById('mp-add-name');
       var secEl  = document.getElementById('mp-add-sector');
       var costEl = document.getElementById('mp-add-cost');
-      if (nameEl && !nameEl.value) nameEl.value = s.n;
-      if (secEl  && !secEl.value)  secEl.value  = s.sec;
-      if (costEl && !costEl.value) costEl.value  = s.price;
+      if (nameEl) nameEl.value = s.n;
+      if (secEl)  secEl.value  = s.sec;
+      if (costEl) costEl.value = s.price;
     }
   });
 }
@@ -11892,10 +12019,10 @@ function mpAddHolding() {
   if (!qty || qty <= 0) { toast('Enter a valid quantity', 'error'); return; }
   if (!cost || cost <= 0) { toast('Enter a valid cost price', 'error'); return; }
 
-  // Auto-detect name/sector if blank
+  // Auto-detect name/sector if blank — NGX first, then US
   if (!name || !sector) {
-    var pool = (typeof ALL_STOCKS !== 'undefined' && ALL_STOCKS.length) ? ALL_STOCKS : STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
-    var s = pool.find(function(x){ return x.t === ticker; });
+    var s = (typeof STOCKS !== 'undefined' ? STOCKS : []).find(function(x){ return x.t === ticker; });
+    if (!s && typeof US_STOCKS !== 'undefined') s = US_STOCKS.find(function(x){ return x.t === ticker; });
     if (s) { if (!name) name = s.n; if (!sector) sector = s.sec; }
   }
 
