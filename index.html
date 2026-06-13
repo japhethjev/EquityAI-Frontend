@@ -6925,6 +6925,7 @@ function portDownload() {
   var date  = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
   var _portIsUS = (d.market === 'us' || d.market === 'US');
   var _portSym  = _portIsUS ? '$' : '\u20a6';
+  var _sym      = _portSym;
   var _isUS     = _portIsUS;
   var _bmark    = _portIsUS ? 'S&P 500' : 'NGX ASI';
   var title = ai.portfolioTitle || (_portIsUS ? 'US Optimised Portfolio' : 'NGX Optimised Portfolio');
@@ -6933,6 +6934,32 @@ function portDownload() {
   var bull  = ai.forwardReturnBull || Math.round(fwd*1.6);
   var dy    = ai.expectedDivYield || 4;
   var rebal = ai.rebalanceFrequency || 'Quarterly';
+
+  // Monthly growth variables (mirrors the app render)
+  var amtBase      = d.amount || 1000000;
+  var amtBase6     = Math.round(amtBase * (1 + fwd/100));
+  var amtBear      = Math.round(amtBase * (1 + bear/100));
+  var amtBull      = Math.round(amtBase * (1 + bull/100));
+  var gainBase     = amtBase6 - amtBase;
+  var monthlyRate  = fwd / 6 / 100;
+  var monthlyVals  = [];
+  var _running     = amtBase;
+  [0.85,0.90,1.00,1.05,1.10,1.10].forEach(function(factor) {
+    _running = Math.round(_running * (1 + monthlyRate * factor));
+    monthlyVals.push(_running);
+  });
+  var divYieldAnnual = dy / 100;
+  var divIncome6m    = Math.round(amtBase * divYieldAnnual / 2);
+  var totalReturn6m  = gainBase + divIncome6m;
+  var pdfMonths      = ['May 2026','Jun 2026','Jul 2026','Aug 2026','Sep 2026','Oct 2026'];
+
+  function fmtM(n) {
+    if (n >= 1000000000) return _sym + (n/1000000000).toFixed(2) + 'B';
+    if (n >= 1000000)    return _sym + (n/1000000).toFixed(2) + 'M';
+    if (n >= 1000)       return _sym + (n/1000).toFixed(0) + 'K';
+    return _sym + Number(n).toLocaleString();
+  }
+  function fmtFull(n) { return _sym + Number(n).toLocaleString(); }
 
   // Sector totals
   var secMap = {};
@@ -7015,8 +7042,73 @@ function portDownload() {
     +cell(dy+'%','Div Yield','Weighted average','#7c3aed')
     +'</tr></table>'
 
-    // ── HOLDINGS ───────────────────────────────────────────────────
-    +'<div style="font-family:Syne,sans-serif;font-size:14px;font-weight:700;color:#0f172a;padding-bottom:8px;border-bottom:2px solid #e2e8f0;margin-bottom:12px">&#128202; Portfolio Holdings &amp; Weights</div>'
+    // ── MONTHLY GROWTH BREAKDOWN ───────────────────────────────────
+    +'<div style="font-family:Syne,sans-serif;font-size:14px;font-weight:700;color:#0f172a;padding-bottom:8px;border-bottom:2px solid #e2e8f0;margin-bottom:12px">📅 Monthly Growth Breakdown (Base Case)</div>'
+    +'<div style="font-size:11px;color:#64748b;margin-bottom:10px">Compounding monthly at +'+fwd+'% over 6 months · Starting capital: '+fmtFull(amtBase)+'</div>'
+    +'<table width="100%" style="margin-bottom:18px;border-collapse:collapse">'
+    +'<thead><tr style="background:#1a56db">'
+    +'<th style="padding:8px 10px;text-align:left;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;border-radius:6px 0 0 0;font-weight:700">Month</th>'
+    +'<th style="padding:8px 10px;text-align:left;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;font-weight:700">Period</th>'
+    +'<th style="padding:8px 10px;text-align:right;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;font-weight:700">Portfolio Value</th>'
+    +'<th style="padding:8px 10px;text-align:right;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;font-weight:700">Monthly Gain</th>'
+    +'<th style="padding:8px 10px;text-align:right;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;font-weight:700">Cumulative Gain</th>'
+    +'<th style="padding:8px 10px;text-align:right;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;border-radius:0 6px 0 0;font-weight:700">Return %</th>'
+    +'</tr></thead><tbody>'
+    +monthlyVals.map(function(val,i){
+      var prev    = i===0 ? amtBase : monthlyVals[i-1];
+      var mGain   = val - prev;
+      var cumGain = val - amtBase;
+      var cumPct  = Math.round((val/amtBase-1)*100*10)/10;
+      var isLast  = i === monthlyVals.length-1;
+      var bg      = isLast ? '#eff6ff' : (i%2===0?'#fff':'#f8fafc');
+      var fw      = isLast ? '800' : '600';
+      var tc      = isLast ? '#1a56db' : '#0f172a';
+      return '<tr style="background:'+bg+';border-bottom:1px solid #e2e8f0">'
+        +'<td style="padding:9px 10px;font-weight:'+fw+';color:'+tc+'">'+(i+1)+(i===0?' (Now)':'')+(isLast?' (Final)':'')+'</td>'
+        +'<td style="padding:9px 10px;color:#64748b;font-size:11px">'+pdfMonths[i]+'</td>'
+        +'<td style="padding:9px 10px;text-align:right;font-family:DM Mono,monospace;font-weight:'+fw+';color:'+tc+'">'+fmtFull(val)+'</td>'
+        +'<td style="padding:9px 10px;text-align:right;font-family:DM Mono,monospace;color:#059669;font-weight:600">+'+fmtM(mGain)+'</td>'
+        +'<td style="padding:9px 10px;text-align:right;font-family:DM Mono,monospace;color:#1a56db;font-weight:600">+'+fmtM(cumGain)+'</td>'
+        +'<td style="padding:9px 10px;text-align:right;font-family:DM Mono,monospace;color:#059669;font-weight:700">+'+cumPct+'%</td>'
+        +'</tr>';
+    }).join('')
+    +'<tr style="background:#1a56db">'
+    +'<td colspan="2" style="padding:10px;font-weight:700;color:#fff;font-size:12px">Final Portfolio Value (6 months)</td>'
+    +'<td style="padding:10px;text-align:right;font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#fff">'+fmtFull(monthlyVals[5])+'</td>'
+    +'<td style="padding:10px;text-align:right;font-family:DM Mono,monospace;font-weight:700;color:#93c5fd">+'+fmtM(divIncome6m)+' divs</td>'
+    +'<td style="padding:10px;text-align:right;font-family:DM Mono,monospace;font-weight:700;color:#4ade80">+'+fmtM(totalReturn6m)+'</td>'
+    +'<td style="padding:10px;text-align:right;font-family:Syne,sans-serif;font-weight:800;color:#4ade80">+'+fwd+'%</td>'
+    +'</tr>'
+    +'</tbody></table>'
+
+    // ── PER-STOCK INVESTMENT BREAKDOWN ─────────────────────────────
+    +'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:#0f172a;margin-bottom:10px">📊 Per-Stock Investment Breakdown</div>'
+    +'<table width="100%" style="margin-bottom:22px;border-collapse:collapse">'
+    +'<thead><tr style="background:#1a56db">'
+    +'<th style="padding:8px 10px;text-align:left;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;border-radius:6px 0 0 0;font-weight:700">Stock</th>'
+    +'<th style="padding:8px 10px;text-align:left;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;font-weight:700">Allocation</th>'
+    +'<th style="padding:8px 10px;text-align:right;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;font-weight:700">Amount Invested</th>'
+    +'<th style="padding:8px 10px;text-align:right;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;font-weight:700">Projected Value (6M)</th>'
+    +'<th style="padding:8px 10px;text-align:right;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;border-radius:0 6px 0 0;font-weight:700">Expected Gain</th>'
+    +'</tr></thead><tbody>'
+    +p.map(function(s,i){
+      var w        = W[i];
+      var invested  = Math.round(amtBase * w / 100);
+      var projected = Math.round(invested * (1 + fwd/100));
+      var stockGain = projected - invested;
+      var bg        = i%2===0?'#fff':'#f8fafc';
+      return '<tr style="background:'+bg+';border-bottom:1px solid #e2e8f0">'
+        +'<td style="padding:9px 10px"><strong style="font-size:12px;color:#0f172a">'+s.t+'</strong> <span style="font-size:10px;color:#64748b">'+s.n+'</span></td>'
+        +'<td style="padding:9px 10px"><span style="background:#eff6ff;color:#1a56db;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700">'+w+'%</span></td>'
+        +'<td style="padding:9px 10px;text-align:right;font-family:DM Mono,monospace;font-weight:600;font-size:11px">'+fmtFull(invested)+'</td>'
+        +'<td style="padding:9px 10px;text-align:right;font-family:DM Mono,monospace;font-weight:700;color:#1a56db;font-size:11px">'+fmtFull(projected)+'</td>'
+        +'<td style="padding:9px 10px;text-align:right;font-family:DM Mono,monospace;color:#059669;font-weight:600;font-size:11px">+'+fmtM(stockGain)+'</td>'
+        +'</tr>';
+    }).join('')
+    +'</tbody></table>'
+
+    // ── HOLDINGS TABLE ─────────────────────────────────────────────
+    +'<div style="font-family:Syne,sans-serif;font-size:14px;font-weight:700;color:#0f172a;padding-bottom:8px;border-bottom:2px solid #e2e8f0;margin-bottom:12px">📋 Portfolio Holdings &amp; Weights</div>'
     +'<table width="100%" style="margin-bottom:20px;border-collapse:collapse">'
     +'<thead><tr style="background:#1a56db">'
     +'<th style="padding:8px 10px;text-align:left;color:#fff;font-size:9px;letter-spacing:.06em;text-transform:uppercase;border-radius:6px 0 0 0;font-weight:700">#</th>'
@@ -7035,11 +7127,14 @@ function portDownload() {
       var sc = s.sig==='BUY'?'#059669':s.sig==='HOLD'?'#d97706':'#3b82f6';
       var sb = s.sig==='BUY'?'rgba(5,150,105,.1)':s.sig==='HOLD'?'rgba(217,119,6,.1)':'rgba(59,130,246,.1)';
       var bg = i%2===0?'#fff':'#f8fafc';
+      var rationale = ai && ai.stockRationale && ai.stockRationale[i] ? ai.stockRationale[i].rationale : (s.thesis||'').substring(0,120)+(s.thesis&&s.thesis.length>120?'...':'');
+      var contribution = ai && ai.stockRationale && ai.stockRationale[i] ? ai.stockRationale[i].contribution : '';
       return '<tr style="background:'+bg+';border-bottom:1px solid #e2e8f0">'
         +'<td style="padding:9px 10px;font-size:11px;color:#94a3b8;font-weight:700">'+(i+1)+'</td>'
         +'<td style="padding:9px 10px">'
         +'<div style="font-size:12px;font-weight:700;color:#0f172a">'+s.t+'</div>'
         +'<div style="font-size:10px;color:#64748b">'+s.n+'</div>'
+        +(rationale?'<div style="font-size:9.5px;color:#475569;margin-top:3px;line-height:1.5">'+rationale+(contribution?' <span style="background:#eff6ff;color:#1a56db;padding:1px 6px;border-radius:20px;font-size:8px;font-weight:700">'+contribution+'</span>':'')+'</div>':'')
         +'</td>'
         +'<td style="padding:9px 10px"><span style="background:#eff6ff;color:#1a56db;padding:2px 7px;border-radius:20px;font-size:9px;font-weight:600">'+s.sec+'</span></td>'
         +'<td style="padding:9px 10px;text-align:right;font-family:DM Mono,monospace;font-size:11px;font-weight:600">&#8358;'+Number(s.price).toLocaleString()+'</td>'
@@ -7053,6 +7148,15 @@ function portDownload() {
         +'</td></tr>';
     }).join('')
     +'</tbody></table>'
+
+    // ── TOP PICK ───────────────────────────────────────────────────
+    +(ai.topPick?
+    '<div style="background:linear-gradient(135deg,#eff6ff,#f0fdf4);border:1.5px solid #1a56db;border-radius:12px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:flex-start;gap:14px">'
+    +'<div style="background:#1a56db;color:#fff;border-radius:8px;padding:6px 10px;font-size:9px;font-weight:800;white-space:nowrap;margin-top:2px">⭐ TOP PICK</div>'
+    +'<div>'
+    +'<div style="font-size:13px;font-weight:800;color:#0f172a;margin-bottom:3px">'+ai.topPick+(ai.topPickReason?' — <span style="font-weight:400;color:#334155">'+ai.topPickReason+'</span>':'')+'</div>'
+    +'</div>'
+    +'</div>':'')
 
     // ── SECTOR + FACTORS ───────────────────────────────────────────
     +'<table width="100%" style="margin-bottom:20px"><tr>'
