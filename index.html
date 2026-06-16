@@ -6967,10 +6967,11 @@ function renderPortfolio(portfolio, weights, bt, amount, ai, market) {
   // Store for PDF export — ensure normW is stored as a plain array copy
   _portData = {
     portfolio: portfolio,
-    weights:   normW.slice(),  // explicit copy
+    weights:   normW.slice(),
     backtest:  bt,
     amount:    amount,
-    ai:        ai
+    ai:        ai,
+    market:    market || 'NGX'
   };
   console.log('[Portfolio] _portData set. Holdings:', portfolio.length, 'Weights:', normW.slice(0,3));
 
