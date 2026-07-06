@@ -854,7 +854,8 @@ select.form-input option{background:#ffffff}
         <div class="price-amount">
           <span class="amount">₦10,000</span><span class="period">/ month</span>
         </div>
-        <div style="font-size:11px;color:#64748b;margin-bottom:4px">or <strong style="color:#1a56db">$6 / month</strong> for international subscribers</div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:2px">or <strong style="color:#1a56db">$6 / month</strong> for international subscribers</div>
+        <div style="font-size:11px;color:#059669;font-weight:600;margin-bottom:4px">🔄 Auto-renews monthly · Cancel anytime</div>
         <div class="price-desc">Full NGX access for serious Nigerian investors and analysts.</div>
         <ul class="price-features">
           <li>&#x1F1F3;&#x1F1EC; All 149 NGX stocks</li>
@@ -1963,12 +1964,15 @@ select.form-input option{background:#ffffff}
     <div id="pay-ngn-panel">
       <div class="paystack-summary">
         <div class="ps-row"><span class="ps-row-lbl">Plan</span><span class="ps-row-val" id="ps-plan-name">Professional</span></div>
-        <div class="ps-row"><span class="ps-row-lbl">Billing</span><span class="ps-row-val">Monthly</span></div>
+        <div class="ps-row"><span class="ps-row-lbl">Billing</span><span class="ps-row-val">Monthly · Cancel anytime</span></div>
         <div class="ps-row ps-total"><span class="ps-row-lbl">Total</span><span class="ps-row-val" id="ps-amount">&#8358;10,000</span></div>
       </div>
+      <div style="font-size:11px;color:#64748b;background:#f8fafc;border-radius:6px;padding:8px 12px;margin-bottom:12px;line-height:1.6">
+        🔄 <strong>Recurring subscription.</strong> Your card will be charged ₦10,000 automatically every month on the same date. You can cancel at any time from your Paystack subscription portal or by contacting us at japhethjev@gmail.com.
+      </div>
       <div class="form-group"><label class="form-label">Email for receipt</label><input type="email" class="form-input" id="ps-email" placeholder="your@email.com"></div>
-      <button class="btn btn-gold" style="width:100%;padding:13px;font-size:14px;justify-content:center" onclick="initiatePaystack()">Pay with Paystack</button>
-      <div class="paystack-badge">&#128274; Secured by Paystack &#183; Nigerian cards, bank transfer &amp; USSD</div>
+      <button class="btn btn-gold" style="width:100%;padding:13px;font-size:14px;justify-content:center" onclick="initiatePaystack()">Pay with Paystack — ₦10,000/mo</button>
+      <div class="paystack-badge">&#128274; Secured by Paystack · Nigerian cards, bank transfer &amp; USSD</div>
     </div>
     <div id="pay-usd-panel" style="display:none">
       <div class="paystack-summary">
@@ -2042,6 +2046,11 @@ function isSupabaseReady() { return !!getSupabase(); }
 var CONFIG = {
   // ⚠️ STEP 1: Replace with your Paystack LIVE public key (paystack.com → Settings → API)
   PAYSTACK_PUBLIC_KEY: 'pk_live_aa1dc31dfcf5c330624e391bb6ea20e79a842a92',
+  // ⚠️ STEP 2: Paystack subscription plan codes — get these by visiting once:
+  //   https://your-railway-url.up.railway.app/admin/paystack/setup-plans?secret=YOUR_ADMIN_SECRET
+  // Copy the plan_code values returned into here. Without these, payments are ONE-TIME only.
+  PAYSTACK_PRO_PLAN_CODE: 'PLN_aktr3qlkj5opr4f',
+  PAYSTACK_ENTERPRISE_PLAN_CODE: 'PLN_rm8jf38ylhortuj',
   STRIPE_PUBLIC_KEY: 'pk_live_51TV7lSRZB4eSi7AJNON01wQ382kYCtGcKcSyFDAcyh2gQ6cOE9BbfX1LzNNVhuHosPmTpl8RyMwTnOjsH3EgHa3r00BOxItvet',
   // ⚠️ Stripe Price IDs — the ONLY thing you need besides the public key above.
   // Get from: Stripe Dashboard → Products → click a product → copy the Price ID (starts with price_)
@@ -8804,11 +8813,18 @@ function initiatePaystack(){
     return;
   }
 
+  var _planCode = (currentUpgradePlan === 'enterprise') ? CONFIG.PAYSTACK_ENTERPRISE_PLAN_CODE : CONFIG.PAYSTACK_PRO_PLAN_CODE;
+  var _hasValidPlanCode = _planCode && _planCode.indexOf('xxxxxxx') === -1;
+  if (!_hasValidPlanCode) {
+    console.warn('[Paystack] No subscription plan code configured — this will be a ONE-TIME payment, not recurring. Set up plan codes in CONFIG.');
+  }
+
   var handler=PaystackPop.setup({
     key: CONFIG.PAYSTACK_PUBLIC_KEY,
     email: email,
     amount: cfg.amount,
     currency: 'NGN',
+    plan: _hasValidPlanCode ? _planCode : undefined, // enables monthly auto-renewal via Paystack Subscriptions
     ref: 'NGX_'+Date.now()+'_'+Math.random().toString(36).substr(2,9),
     metadata:{plan:currentUpgradePlan,userId:currentUser?currentUser.id:''},
     onClose:function(){toast('Payment cancelled','error');},
