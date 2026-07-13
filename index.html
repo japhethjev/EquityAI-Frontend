@@ -2049,8 +2049,8 @@ var CONFIG = {
   // ⚠️ STEP 2: Paystack subscription plan codes — get these by visiting once:
   //   https://your-railway-url.up.railway.app/admin/paystack/setup-plans?secret=YOUR_ADMIN_SECRET
   // Copy the plan_code values returned into here. Without these, payments are ONE-TIME only.
-  PAYSTACK_PRO_PLAN_CODE: 'PLN_aktr3qlkj5opr4f',
-  PAYSTACK_ENTERPRISE_PLAN_CODE: 'PLN_rm8jf38ylhortuj',
+  PAYSTACK_PRO_PLAN_CODE: 'PLN_xxxxxxxxxxxxxxx',
+  PAYSTACK_ENTERPRISE_PLAN_CODE: 'PLN_xxxxxxxxxxxxxxx',
   STRIPE_PUBLIC_KEY: 'pk_live_51TV7lSRZB4eSi7AJNON01wQ382kYCtGcKcSyFDAcyh2gQ6cOE9BbfX1LzNNVhuHosPmTpl8RyMwTnOjsH3EgHa3r00BOxItvet',
   // ⚠️ Stripe Price IDs — the ONLY thing you need besides the public key above.
   // Get from: Stripe Dashboard → Products → click a product → copy the Price ID (starts with price_)
@@ -3057,6 +3057,11 @@ var SIGNAL_ENGINE = {
           if (typeof _mktFilter !== 'undefined' && (_mktFilter === 'US' || _mktFilter === 'ALL')) {
             if (typeof buildStockGrid === 'function') buildStockGrid(visibleStocks);
           }
+          // Re-render My Portfolio if open — so P&L reflects fresh US prices
+          var mpTab = document.getElementById('dtab-myportfolio');
+          if (mpTab && mpTab.classList.contains('active') && typeof renderMyPortfolioModule === 'function') {
+            setTimeout(renderMyPortfolioModule, 300);
+          }
         }
       })
       .catch(function(e) { console.warn('[US Prices] Fetch failed:', e.message); });
@@ -3100,6 +3105,11 @@ var SIGNAL_ENGINE = {
           if (typeof ALL_STOCKS !== 'undefined') ALL_STOCKS = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
           if (!visibleStocks || visibleStocks.length === 0) visibleStocks = STOCKS.slice();
           if (typeof buildStockGrid === 'function') buildStockGrid(visibleStocks);
+          // Re-render My Portfolio if open — so P&L reflects fresh prices
+          var mpTab = document.getElementById('dtab-myportfolio');
+          if (mpTab && mpTab.classList.contains('active') && typeof renderMyPortfolioModule === 'function') {
+            setTimeout(renderMyPortfolioModule, 300);
+          }
 
           // Update market strip — use server data if valid, otherwise compute locally from STOCKS
           var _mkt = (data.market && (data.market.gainers > 0 || data.market.losers > 0))
@@ -11576,6 +11586,13 @@ function mpCalcPortfolio(port) {
 
 // ── MAIN RENDER ───────────────────────────────────────────────────────
 function renderMyPortfolioModule() {
+  // Always fetch latest prices from server before rendering P&L
+  // This ensures portfolio values reflect today's closing prices
+  var _srvUrl = (typeof SIGNAL_ENGINE !== 'undefined' && SIGNAL_ENGINE.SERVER_URL) ? SIGNAL_ENGINE.SERVER_URL : '';
+  if (_srvUrl) {
+    if (typeof SIGNAL_ENGINE.fetchNGXPrices === 'function') SIGNAL_ENGINE.fetchNGXPrices(_srvUrl);
+    if (typeof SIGNAL_ENGINE.fetchUSPrices  === 'function') SIGNAL_ENGINE.fetchUSPrices(_srvUrl);
+  }
   var root = document.getElementById('myport-root');
   if (!root) return;
 
