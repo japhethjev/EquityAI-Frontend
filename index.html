@@ -5650,92 +5650,77 @@ function scoreStockUS(s, objective, riskLevel, divReq) {
   var score = 0;
   var deNum = parseFloat(s.de) || 1;
 
-  // ── Factor 1: MOMENTUM (30%) ──────────────────────────────────────
-  // US stocks: meaningful momentum starts at +15% YtD (S&P baseline ~14%)
-  var ytd = s.ytd || 0;
-  var ytdScore = ytd > 80  ? 100
-               : ytd > 60  ? 95
-               : ytd > 40  ? 88
-               : ytd > 25  ? 78
-               : ytd > 14  ? 65   // beat the S&P 500
-               : ytd > 5   ? 45
-               : ytd > 0   ? 28
-               : ytd > -10 ? 15
-               : 5;
+  // ══ METHODOLOGY: 5-Factor Quality-First Model (US calibration) ═════
+  // Identical structure to NGX scoreStock — signal decoupled from momentum.
+  // US calibration: higher P/E norms, USD FCF scale, S&P 500 momentum baseline.
+  // Factor weights (base): Quality 30% | Momentum 22% | Growth 22% | Value 18% | Signal 8%
 
-  var sigScore = s.sig === 'BUY' ? 100 : s.sig === 'HOLD' ? 65 : 20;
-  var momentumScore = (ytdScore * 0.65) + (sigScore * 0.35);
-
-  // ── Factor 2: QUALITY (28%) ───────────────────────────────────────
-  // US norms: ROE > 15% is good, > 30% is excellent
+  // ── Factor 1: QUALITY (base 30%) ─────────────────────────────────
   var roe = parseFloat((s.roe||'0').replace('%','')) || 0;
   var roeScore = roe > 50 ? 100 : roe > 30 ? 92 : roe > 20 ? 80 : roe > 12 ? 62 : roe > 6 ? 40 : 15;
 
   var npm = parseFloat((s.npm||'0').replace('%','')) || 0;
   var npmScore = npm > 35 ? 100 : npm > 22 ? 88 : npm > 14 ? 72 : npm > 8 ? 55 : npm > 3 ? 35 : 10;
 
-  // US leverage: < 0.5x very low, 1-2x normal, > 3x high
   var deScore = deNum < 0.3 ? 100 : deNum < 0.6 ? 88 : deNum < 1.0 ? 74 : deNum < 1.8 ? 58 : deNum < 3.0 ? 38 : 18;
 
-  // FCF: parse $XB format
   var fcfStr = (s.fcf||'0').replace(/[$,]/g,'');
   var fcfNum = parseFloat(fcfStr) || 0;
   if ((s.fcf||'').indexOf('T') >= 0) fcfNum *= 1000;
   var fcfScore = fcfNum > 50 ? 100 : fcfNum > 20 ? 88 : fcfNum > 8 ? 74 : fcfNum > 2 ? 58 : fcfNum > 0 ? 38 : 15;
 
-  var qualityScore = (roeScore * 0.35) + (npmScore * 0.30) + (deScore * 0.20) + (fcfScore * 0.15);
+  var qualityScore = (roeScore * 0.40) + (npmScore * 0.28) + (deScore * 0.18) + (fcfScore * 0.14);
 
-  // ── Factor 3: GROWTH (25%) ────────────────────────────────────────
+  // ── Factor 2: MOMENTUM (base 22%) ────────────────────────────────
+  // US baseline: S&P 500 ~14% YtD — meaningful outperformance starts above this
+  var ytd = s.ytd || 0;
+  var ytdScore = ytd > 80 ? 100 : ytd > 60 ? 95 : ytd > 40 ? 88 : ytd > 25 ? 78
+               : ytd > 14 ? 65 : ytd > 5 ? 45 : ytd > 0 ? 28 : ytd > -10 ? 15 : 5;
+  var momentumScore = ytdScore; // pure price momentum — signal decoupled
+
+  // ── Factor 3: GROWTH (base 22%) ──────────────────────────────────
   var revGrowth = parseFloat((s.revy||'0').replace('+','').replace('%','')) || 0;
   var patGrowth = parseFloat((s.paty||'0').replace('+','').replace('%','')) || 0;
-
-  // US growth thresholds are higher — 20%+ revenue growth is exceptional
   var revScore = revGrowth > 50 ? 100 : revGrowth > 30 ? 92 : revGrowth > 20 ? 82 : revGrowth > 10 ? 68 : revGrowth > 5 ? 50 : revGrowth > 0 ? 30 : 5;
   var patScore = patGrowth > 100 ? 100 : patGrowth > 60 ? 94 : patGrowth > 30 ? 82 : patGrowth > 15 ? 68 : patGrowth > 5 ? 48 : patGrowth > 0 ? 28 : 5;
   var growthScore = (revScore * 0.40) + (patScore * 0.60);
 
-  // ── Factor 4: VALUE (17%) ─────────────────────────────────────────
-  // US P/E norms: S&P trades ~22x; growth stocks at 40-80x are "fair"
+  // ── Factor 4: VALUE (base 18%) — US P/E norms: S&P ~22x ──────────
   var pe = s.pe || 25;
-  // Negative PE = loss-making; very high PE = priced for perfection
-  var peScore = pe <= 0   ? 10
-              : pe < 12   ? 95  // deeply cheap for US
-              : pe < 18   ? 82  // value territory
-              : pe < 25   ? 68  // near market average
-              : pe < 35   ? 52  // growth premium
-              : pe < 55   ? 35  // high growth premium
-              : pe < 100  ? 20  // speculative
-              : 8;
-
+  var peScore = pe <= 0 ? 10 : pe < 12 ? 95 : pe < 18 ? 82 : pe < 25 ? 68 : pe < 35 ? 52 : pe < 55 ? 35 : pe < 100 ? 20 : 8;
   var dy = s.dy || 0;
   var dyScore = dy >= 4 ? 100 : dy >= 3 ? 85 : dy >= 2 ? 68 : dy >= 1 ? 48 : dy >= 0.5 ? 30 : 12;
   var valueScore = (peScore * 0.60) + (dyScore * 0.40);
 
-  // ── OBJECTIVE-BASED WEIGHTS ───────────────────────────────────────
-  var wMomentum=0.30, wQuality=0.28, wGrowth=0.25, wValue=0.17;
+  // ── Factor 5: SIGNAL (base 8%) ────────────────────────────────────
+  var sigScore = s.sig === 'BUY' ? 100 : s.sig === 'HOLD' ? 60 : 15;
 
+  // ── BASE WEIGHTS ─────────────────────────────────────────────────
+  var wQuality=0.30, wMomentum=0.22, wGrowth=0.22, wValue=0.18, wSignal=0.08;
+
+  // ── OBJECTIVE ADJUSTMENTS ────────────────────────────────────────
   if (objective === 'momentum') {
-    wMomentum=0.45; wQuality=0.22; wGrowth=0.22; wValue=0.11;
-    if (ytd > 30 && s.sig === 'BUY') score += 15;
+    wMomentum=0.35; wQuality=0.25; wGrowth=0.20; wValue=0.12; wSignal=0.08;
+    if (ytd > 30 && s.sig === 'BUY') score += 10;
   } else if (objective === 'income') {
-    wMomentum=0.20; wQuality=0.35; wGrowth=0.20; wValue=0.25;
+    wQuality=0.35; wValue=0.28; wGrowth=0.18; wMomentum=0.12; wSignal=0.07;
     if (dy >= 2.5) score += 18;
-    if (dy >= 4)   score += 12;
+    if (dy >= 4)   score += 10;
   } else if (objective === 'value') {
-    wMomentum=0.20; wQuality=0.30; wGrowth=0.18; wValue=0.32;
+    wValue=0.32; wQuality=0.32; wGrowth=0.18; wMomentum=0.12; wSignal=0.06;
     if (pe > 0 && pe < 18) score += 15;
   } else if (objective === 'growth') {
-    wMomentum=0.25; wQuality=0.28; wGrowth=0.38; wValue=0.09;
+    wGrowth=0.38; wQuality=0.28; wMomentum=0.18; wValue=0.10; wSignal=0.06;
     if (revGrowth > 20 || patGrowth > 30) score += 12;
   } else if (objective === 'balanced') {
-    if (roe > 20 && ytd > 14) score += 8;
+    if (roe > 20 && ytd > 14) score += 6;
   }
 
   // ── RISK ADJUSTMENTS ─────────────────────────────────────────────
   if (riskLevel === 'conservative') {
-    wQuality += 0.07; wMomentum -= 0.07;
-    if (deNum > 2.0)  score -= 12;
-    if (npm < 8)      score -= 8;
+    wQuality += 0.06; wMomentum -= 0.06;
+    if (deNum > 2.0)  score -= 10;
+    if (npm < 8)      score -= 6;
   } else if (riskLevel === 'aggressive') {
     wMomentum += 0.08; wGrowth += 0.05; wQuality -= 0.08; wValue -= 0.05;
     if (ytd > 40 && s.sig === 'BUY') score += 10;
@@ -5746,20 +5731,16 @@ function scoreStockUS(s, objective, riskLevel, divReq) {
   if (divReq === 'min4' && dy < 4)  score -= 45;
   if (divReq === 'high' && dy < 3)  score -= 55;
 
-  // ── AI SUPERCYCLE BONUS (Jul 2026 context) ────────────────────────
-  // Tech, AI, and semiconductor stocks benefit from current macro tailwinds
-  var aiSectors = ['Technology'];
-  if (aiSectors.indexOf(s.sec) >= 0 && ytd > 20 && s.sig === 'BUY') score += 8;
+  // ── AI SUPERCYCLE BONUS (Jul 2026) ───────────────────────────────
+  var aiSectors = ['Technology','Semiconductors','AI','Cloud'];
+  if (aiSectors.indexOf(s.sec) >= 0 && (s.sig === 'BUY' || s.sig === 'HOLD')) score += 6;
 
-  // Mega-cap quality premium — large US companies have moat advantage
-  var mcStr = (s.mc||'').replace(/[$,]/g,'');
-  var mcNum = parseFloat(mcStr) || 0;
-  if ((s.mc||'').indexOf('T') >= 0) mcNum *= 1000; // convert T to B
-  if (mcNum > 500 && s.sig === 'BUY') score += 5; // $500B+ mega-cap
-
-  // ── FINAL SCORE ───────────────────────────────────────────────────
-  score += (momentumScore * wMomentum) + (qualityScore * wQuality)
-         + (growthScore * wGrowth) + (valueScore * wValue);
+  // ── FINAL COMPOSITE ──────────────────────────────────────────────
+  score += (qualityScore  * wQuality)
+         + (momentumScore * wMomentum)
+         + (growthScore   * wGrowth)
+         + (valueScore    * wValue)
+         + (sigScore      * wSignal);
 
   return {
     total:    Math.round(Math.min(100, Math.max(0, score))),
@@ -5885,96 +5866,85 @@ function scoreStock(s, objective, riskLevel, divReq) {
   var score = 0;
   var deNum = parseFloat(s.de) || 1;
 
-  // ── Factor 1: MOMENTUM (weight 30%) ───────────────────────────────
-  // This is the PRIMARY alpha driver — stocks already moving beat ASI
-  // JPMorgan quantitative screening: price momentum is evidence of earnings momentum
-  var ytd = s.ytd || 0;
-  var ytdScore = ytd > 150 ? 100
-               : ytd > 100 ? 95
-               : ytd > 80  ? 88
-               : ytd > 60  ? 80
-               : ytd > 40  ? 70
-               : ytd > 25  ? 58
-               : ytd > 15  ? 45
-               : ytd > 5   ? 30
-               : 0;
+  // ══ METHODOLOGY: 5-Factor Quality-First Model ══════════════════════
+  // Signal is decoupled from momentum — a HOLD on NESTLE (ROE 60%)
+  // should never lose to a BUY on a low-quality stock.
+  // Factor weights (base): Quality 30% | Momentum 22% | Growth 22% | Value 18% | Signal 8%
+  // Objective adjustments shift weights within these factors.
 
-  // Signal strength — BUY from AI engine confirms institutional momentum
-  var sigScore = s.sig === 'BUY' ? 100 : s.sig === 'HOLD' ? 65 : 20;
-
-  // Momentum is signal + price trend combined
-  var momentumScore = (ytdScore * 0.65) + (sigScore * 0.35);
-
-  // ── Factor 2: QUALITY (weight 28%) ────────────────────────────────
-  // JPMorgan: durable competitive franchise, management quality
+  // ── Factor 1: QUALITY (base 30%) ─────────────────────────────────
+  // Durable competitive franchise: ROE, margin, leverage, FCF
   var roe = parseInt(s.roe) || 0;
-  var roeScore = roe > 35 ? 100 : roe > 25 ? 90 : roe > 18 ? 78 : roe > 12 ? 62 : roe > 8 ? 45 : 15;
+  var roeScore = roe > 50 ? 100 : roe > 35 ? 95 : roe > 25 ? 88 : roe > 18 ? 75 : roe > 12 ? 58 : roe > 8 ? 40 : 15;
 
   var npm = parseFloat(s.npm) || 0;
   var npmScore = npm > 40 ? 100 : npm > 25 ? 85 : npm > 15 ? 70 : npm > 8 ? 55 : npm > 3 ? 35 : 10;
 
   var deScore = deNum < 0.2 ? 100 : deNum < 0.4 ? 90 : deNum < 0.7 ? 78 : deNum < 1.0 ? 64 : deNum < 1.5 ? 45 : 20;
 
-  // Free cash flow quality — FCF generating companies are superior
   var fcfNum = parseFloat((s.fcf||'0').replace(/[₦,B]/g,'')) || 0;
   var fcfScore = fcfNum > 200 ? 100 : fcfNum > 100 ? 85 : fcfNum > 50 ? 70 : fcfNum > 10 ? 55 : fcfNum > 0 ? 40 : 20;
 
-  var qualityScore = (roeScore * 0.35) + (npmScore * 0.30) + (deScore * 0.20) + (fcfScore * 0.15);
+  var qualityScore = (roeScore * 0.40) + (npmScore * 0.28) + (deScore * 0.18) + (fcfScore * 0.14);
 
-  // ── Factor 3: GROWTH (weight 25%) ─────────────────────────────────
-  // JPMorgan: sustainable earnings growth is the foundation of long-term returns
+  // ── Factor 2: MOMENTUM (base 22%) ────────────────────────────────
+  // Pure price momentum — evidence of earnings momentum and market recognition
+  var ytd = s.ytd || 0;
+  var ytdScore = ytd > 150 ? 100 : ytd > 100 ? 95 : ytd > 80 ? 88 : ytd > 60 ? 80
+               : ytd > 40 ? 70 : ytd > 25 ? 58 : ytd > 15 ? 45 : ytd > 5 ? 30 : 0;
+  var momentumScore = ytdScore; // pure price — signal no longer included here
+
+  // ── Factor 3: GROWTH (base 22%) ──────────────────────────────────
+  // Sustainable earnings growth is the foundation of long-term compounding
   var revGrowth = parseFloat((s.revy||'0').replace('+','').replace('%','')) || 0;
   var patGrowth = parseFloat((s.paty||'0').replace('+','').replace('%','')) || 0;
-
   var revScore = revGrowth > 80 ? 100 : revGrowth > 50 ? 92 : revGrowth > 30 ? 80 : revGrowth > 15 ? 65 : revGrowth > 5 ? 45 : revGrowth > 0 ? 25 : 0;
   var patScore = patGrowth > 100 ? 100 : patGrowth > 70 ? 92 : patGrowth > 40 ? 82 : patGrowth > 20 ? 68 : patGrowth > 5 ? 48 : patGrowth > 0 ? 28 : 0;
-
   var growthScore = (revScore * 0.40) + (patScore * 0.60);
 
-  // ── Factor 4: VALUE (weight 17%) ──────────────────────────────────
-  // JPMorgan: buy at discount to intrinsic value — but do not sacrifice quality
+  // ── Factor 4: VALUE (base 18%) ────────────────────────────────────
+  // Buy at discount to intrinsic value — margin of safety
   var pe = s.pe || 20;
-  var peScore = pe < 4 ? 100 : pe < 6 ? 90 : pe < 8 ? 78 : pe < 12 ? 62 : pe < 18 ? 42 : pe < 25 ? 25 : 10;
-
+  var peScore = pe < 4 ? 100 : pe < 6 ? 92 : pe < 8 ? 82 : pe < 12 ? 70 : pe < 18 ? 50 : pe < 25 ? 30 : 10;
   var dy = s.dy || 0;
   var dyScore = dy >= 8 ? 100 : dy >= 6 ? 88 : dy >= 4 ? 72 : dy >= 2 ? 52 : dy >= 1 ? 32 : 15;
-
   var valueScore = (peScore * 0.60) + (dyScore * 0.40);
 
-  // ── OBJECTIVE-BASED WEIGHT ALLOCATION ────────────────────────────
-  var wMomentum=0.30, wQuality=0.28, wGrowth=0.25, wValue=0.17;
+  // ── Factor 5: SIGNAL (base 8%) ────────────────────────────────────
+  // AI signal informs but no longer dominates — a HOLD on a quality compounder
+  // like NESTLE (ROE 60%) still scores well on the other 4 factors
+  var sigScore = s.sig === 'BUY' ? 100 : s.sig === 'HOLD' ? 60 : 15;
 
+  // ── BASE WEIGHTS ─────────────────────────────────────────────────
+  var wQuality=0.30, wMomentum=0.22, wGrowth=0.22, wValue=0.18, wSignal=0.08;
+
+  // ── OBJECTIVE ADJUSTMENTS ────────────────────────────────────────
   if (objective === 'momentum') {
-    wMomentum=0.45; wQuality=0.22; wGrowth=0.22; wValue=0.11;
-    if (ytd > 50) score += 12;
-    if (s.sig === 'BUY') score += 8;
+    wMomentum=0.35; wQuality=0.25; wGrowth=0.20; wValue=0.12; wSignal=0.08;
+    if (ytd > 50 && s.sig === 'BUY') score += 10;
   } else if (objective === 'income') {
-    wMomentum=0.20; wQuality=0.35; wGrowth=0.20; wValue=0.25;
+    wQuality=0.35; wValue=0.28; wGrowth=0.18; wMomentum=0.12; wSignal=0.07;
     if (dy >= 4) score += 18;
-    if (dy >= 6) score += 12;
+    if (dy >= 6) score += 10;
   } else if (objective === 'value') {
-    wMomentum=0.20; wQuality=0.30; wGrowth=0.18; wValue=0.32;
-    if (pe < 6) score += 15;
+    wValue=0.32; wQuality=0.32; wGrowth=0.18; wMomentum=0.12; wSignal=0.06;
+    if (pe > 0 && pe < 8) score += 15;
   } else if (objective === 'growth') {
-    wMomentum=0.25; wQuality=0.28; wGrowth=0.35; wValue=0.12;
+    wGrowth=0.35; wQuality=0.30; wMomentum=0.18; wValue=0.10; wSignal=0.07;
     if (patGrowth > 50) score += 12;
   } else if (objective === 'balanced') {
-    // Balanced keeps base weights — most diversified
-    if (roe > 20 && ytd > 30) score += 8;
+    // Base weights — most diversified, quality anchors the portfolio
+    if (roe > 20 && ytd > 30) score += 6;
   }
 
-  // ── RISK-LEVEL ADJUSTMENTS ────────────────────────────────────────
+  // ── RISK ADJUSTMENTS ─────────────────────────────────────────────
   if (riskLevel === 'conservative') {
-    wQuality += 0.07;
-    wMomentum -= 0.07;
-    if (deNum > 0.8)  score -= 12;
-    if (deNum > 1.5)  score -= 15;
-    if (npm < 10)     score -= 8;
+    wQuality += 0.06; wMomentum -= 0.06;
+    if (deNum > 0.8)  score -= 10;
+    if (deNum > 1.5)  score -= 12;
+    if (npm < 10)     score -= 6;
   } else if (riskLevel === 'aggressive') {
-    wMomentum += 0.08;
-    wGrowth   += 0.05;
-    wQuality  -= 0.08;
-    wValue    -= 0.05;
+    wMomentum += 0.08; wGrowth += 0.04; wQuality -= 0.07; wValue -= 0.05;
     if (ytd > 60 && s.sig === 'BUY') score += 10;
   }
 
@@ -5983,22 +5953,22 @@ function scoreStock(s, objective, riskLevel, divReq) {
   if (divReq === 'min4' && dy < 4)  score -= 45;
   if (divReq === 'high' && dy < 5)  score -= 55;
 
-  // ── BONUS: FTSE FRONTIER BENEFICIARIES ───────────────────────────
-  // Sep 2026 reclassification will drive foreign inflows into large-caps
+  // ── FTSE FRONTIER BONUS (Sep 2026) ───────────────────────────────
   var mc = (s.mc||'').replace(/[₦,T]/g,'');
   var mcNum = parseFloat(mc) || 0;
   var isMegaCap = mcNum >= 1 || (s.mc||'').indexOf('T') >= 0;
-  if (isMegaCap && s.sig === 'BUY') score += 8;
+  if (isMegaCap && s.sig === 'BUY') score += 6;
 
-  // ── LARGE DIVIDEND PAYER BONUS ────────────────────────────────────
-  if (s.div && s.div >= 10) score += 6; // confirmed large dividend
-  if (s.div && s.div >= 30) score += 6; // very large dividend (e.g. DANGCEM ₦45)
+  // ── LARGE CONFIRMED DIVIDEND BONUS ───────────────────────────────
+  if (s.div && s.div >= 10) score += 5;
+  if (s.div && s.div >= 30) score += 5;
 
-  // ── FINAL COMPOSITE SCORE ─────────────────────────────────────────
-  score += (momentumScore * wMomentum)
-         + (qualityScore  * wQuality)
+  // ── FINAL COMPOSITE ──────────────────────────────────────────────
+  score += (qualityScore  * wQuality)
+         + (momentumScore * wMomentum)
          + (growthScore   * wGrowth)
-         + (valueScore    * wValue);
+         + (valueScore    * wValue)
+         + (sigScore      * wSignal);
 
   return {
     total:    Math.round(Math.min(100, Math.max(0, score))),
