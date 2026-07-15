@@ -640,6 +640,15 @@ select.form-input option{background:#ffffff}
 .port-monthly-table td{padding:9px 10px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text)}
 .port-monthly-table tbody tr:hover td{background:var(--bg3)}
 .port-monthly-table tbody tr:last-child td{border-bottom:2px solid var(--primary);font-weight:700}
+/* ── GREAT COMPANY STRATEGY ── */
+.gc-card{background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--radius2);padding:20px;margin-bottom:14px}
+.gc-score-ring{width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:Syne,sans-serif;font-size:18px;font-weight:800;flex-shrink:0;border:3px solid}
+.gc-criterion{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;margin-bottom:6px;font-size:12px}
+.gc-criterion.pass{background:rgba(5,150,105,.08);border-left:3px solid var(--green)}
+.gc-criterion.fail{background:rgba(220,38,38,.08);border-left:3px solid var(--red)}
+.gc-criterion.est{background:rgba(217,119,6,.08);border-left:3px solid var(--amber)}
+.gc-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:800;letter-spacing:.04em}
+.gc-saved-card{background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px}
 /* ── MY PORTFOLIO MODULE ── */
 .mp-card{background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--radius2);padding:20px;margin-bottom:16px}
 .mp-card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px}
@@ -1072,6 +1081,7 @@ select.form-input option{background:#ffffff}
       <button class="dash-tab" onclick="switchDashTab('screener',this)">🔍 Screener</button>
       <button class="dash-tab" onclick="switchDashTab('compare',this)">⚖️ Compare</button>
       <button class="dash-tab" onclick="switchDashTab('myportfolio',this)" id="tab-myportfolio" style="background:linear-gradient(135deg,#059669,#0e7490);color:#fff;border:none">📈 My Portfolio</button>
+      <button class="dash-tab" onclick="switchDashTab('greatcompany',this)" id="tab-greatcompany" style="background:linear-gradient(135deg,#d97706,#b45309);color:#fff;border:none">⭐ Great Company</button>
       <button class="dash-tab" onclick="switchDashTab('portfolio',this)" style="background:linear-gradient(135deg,var(--primary),#7c3aed);color:#fff;border:none">💼 AI Portfolio</button>
     </div>
 
@@ -1262,6 +1272,16 @@ select.form-input option{background:#ffffff}
         </div>
       </div>
     </div><!-- /myportfolio tab -->
+
+    <!-- GREAT COMPANY STRATEGY TAB -->
+    <div id="dtab-greatcompany" class="dash-tab-content">
+      <div id="gc-root" style="max-width:1100px;margin:0 auto;padding:4px 0">
+        <div style="text-align:center;padding:48px 24px;color:var(--text3)">
+          <div style="font-size:40px;margin-bottom:12px">⭐</div>
+          <div style="font-size:15px;font-weight:700;color:var(--text)">Loading Great Company Screener...</div>
+        </div>
+      </div>
+    </div><!-- /greatcompany tab -->
 
   </div><!-- /dash-body -->
 </div><!-- /dashboard -->
@@ -2583,6 +2603,7 @@ var SIGNAL_ENGINE = {
       return 'You are a US equity analyst. Generate a brief investment signal for '+s.t+' ('+s.n+', '+s.sec+'). '
         +'Price $'+s.price+', P/E '+s.pe+'x, ROE '+s.roe+', YtD '+s.ytd+'%, Revenue '+s.rev+' ('+s.revy+' YoY), '
         +'Net Profit '+s.pat+' ('+s.paty+' YoY), Net Margin '+s.npm+', D/E '+s.de+', FCF '+s.fcf+', MCap '+s.mc+'. '
+        +'Great Company Score: '+(s._gcScore !== undefined ? s._gcScore+'% ('+s._gcPassed+'/6 criteria)' : 'N/A')+'. '
         +'US Macro Jul 2026: S&P 500 at 7,536 (+17% YtD). Fed 4.25-4.50% on hold. CPI 3.8%. AI supercycle continues. '
         +'Respond ONLY with valid JSON: {"signal":"BUY","reasoning":"2 sentences max","keyRisk":"1 sentence","catalyst":"1 sentence","horizon":"6m"}';
     }
@@ -2619,6 +2640,12 @@ var SIGNAL_ENGINE = {
 
       '═══ INVESTMENT THESIS (current) ═══\n',
       s.thesis + '\n\n',
+
+      '═══ GREAT COMPANY QUALITY SCORE ═══\n',
+      'Greatness Score: ' + (s._gcScore !== undefined ? s._gcScore + '%' : 'Computing...') + ' (' + (s._gcPassed !== undefined ? s._gcPassed + '/6 criteria pass' : 'N/A') + ')\n',
+      'Framework: GP% ≥35% | EBITDA Margin ≥15% | ROE ≥15% | PE ≤20x | EV/EBITDA ≤10x | D/E ≤50% (all vs sector mean)\n',
+      (s._gcScore >= 83 ? 'QUALIFIES as Great Company — fundamental quality is strong\n' : s._gcScore >= 67 ? 'BORDERLINE — meets some but not all quality criteria\n' : 'DOES NOT meet Great Company threshold — fundamental concerns exist\n'),
+      '\n',
 
       '═══ YOUR TASK ═══\n',
       'Generate a rigorous investment signal. Consider:\n',
@@ -3701,6 +3728,33 @@ function _initDashboardCore(fresh) {
   if (typeof ALL_STOCKS === 'undefined' || ALL_STOCKS.length === 0) {
     ALL_STOCKS = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
   }
+
+  // ── Pre-compute Great Company Greatness Scores for all stocks ──────
+  // Attaches _gcScore and _gcPassed to every stock object so they are
+  // available in signal prompts, stock cards, screener and portfolio engine
+  if (typeof gcComputeSectorMeans === 'function' && typeof gcScoreStock === 'function') {
+    try {
+      var _gcMeans = gcComputeSectorMeans(ALL_STOCKS);
+      ALL_STOCKS.forEach(function(s) {
+        var r = gcScoreStock(s, _gcMeans);
+        s._gcScore  = r.greatnessScore;
+        s._gcPassed = r.passed;
+        s._gcDecision = r.decision;
+        s._gcCriteria = r.criteria;
+      });
+      // Sync back to STOCKS and US_STOCKS arrays
+      var gcMap = {};
+      ALL_STOCKS.forEach(function(s){ gcMap[s.t] = s; });
+      (typeof STOCKS !== 'undefined' ? STOCKS : []).forEach(function(s){
+        if (gcMap[s.t]) { s._gcScore=gcMap[s.t]._gcScore; s._gcPassed=gcMap[s.t]._gcPassed; s._gcDecision=gcMap[s.t]._gcDecision; }
+      });
+      (typeof US_STOCKS !== 'undefined' ? US_STOCKS : []).forEach(function(s){
+        if (gcMap[s.t]) { s._gcScore=gcMap[s.t]._gcScore; s._gcPassed=gcMap[s.t]._gcPassed; s._gcDecision=gcMap[s.t]._gcDecision; }
+      });
+      console.log('[GC] Greatness Scores computed for', ALL_STOCKS.length, 'stocks');
+    } catch(e) { console.warn('[GC] Score pre-computation failed:', e.message); }
+  }
+
   visibleStocks = STOCKS.slice(); // Start with NGX (default tab)
   buildStockGrid(visibleStocks);
   runScreener();
@@ -4082,6 +4136,16 @@ function buildStockGrid(list) {
       h += '</div>';
       h += '</div>';
 
+      // ── GREATNESS SCORE BADGE (Great Company Strategy) ──────────
+      if (s._gcScore !== undefined) {
+        var gcColor = s._gcScore >= 83 ? 'var(--green)' : s._gcScore >= 67 ? 'var(--amber)' : 'var(--red)';
+        var gcBg    = s._gcScore >= 83 ? 'rgba(5,150,105,.08)' : s._gcScore >= 67 ? 'rgba(217,119,6,.08)' : 'rgba(220,38,38,.06)';
+        h += '<div style="display:flex;align-items:center;justify-content:space-between;background:'+gcBg+';border-radius:6px;padding:3px 8px;margin-bottom:4px">';
+        h += '<span style="font-size:9px;font-weight:700;color:var(--text3);letter-spacing:.04em">⭐ GREATNESS</span>';
+        h += '<span style="font-family:\'DM Mono\',monospace;font-size:12px;font-weight:800;color:'+gcColor+'">'+s._gcScore+'% ('+s._gcPassed+'/6)</span>';
+        h += '</div>';
+      }
+
       h += '<div class="sc-metrics">';
       h += '<div class="sc-m"><div class="sc-ml">P/E</div><div class="sc-mv">' + s.pe + 'x</div></div>';
       h += '<div class="sc-m"><div class="sc-ml">Div%</div><div class="sc-mv g">' + s.dy + '%</div></div>';
@@ -4419,6 +4483,7 @@ function buildOverview(s){
   h+='<div class="kpi-card"><div class="kpi-lbl">Net Profit</div><div class="kpi-val g">'+s.pat+'</div></div>';
   h+='<div class="kpi-card"><div class="kpi-lbl">Dividend</div><div class="kpi-val gold">'+_sym+s.div+'/share</div></div>';
   h+='<div class="kpi-card"><div class="kpi-lbl">Signal</div><div class="kpi-val '+(s.sig==='BUY'?'g':'')+'">'+s.sig+'</div></div>';
+  h+='<div class="kpi-card" style="border-color:'+(s._gcScore>=83?'var(--green)':s._gcScore>=67?'var(--amber)':'var(--red)')+'"><div class="kpi-lbl">⭐ Greatness</div><div class="kpi-val" style="color:'+(s._gcScore>=83?'var(--green)':s._gcScore>=67?'var(--amber)':'var(--red)')+'">'+(s._gcScore !== undefined ? s._gcScore+'%' : 'N/A')+'</div></div>';
   h+='</div>';
   if(s.thesis) h+='<div class="thesis-box">'+s.thesis+'</div>';
   h+=bh;
@@ -4461,6 +4526,30 @@ function buildFundamentals(s){
   h+='<div class="f-row"><span class="f-row-l">P/E ratio</span><span class="f-row-v">'+s.pe+'x</span></div>';
   h+='<div class="f-row"><span class="f-row-l">Market cap</span><span class="f-row-v">'+s.mc+'</span></div>';
   h+='<div class="f-row"><span class="f-row-l">Investment signal</span><span class="f-row-v '+(s.sig==='BUY'?'g':'')+'">'+s.sig+'</span></div>';
+
+  // ── GREAT COMPANY SCORECARD ─────────────────────────────────────
+  if (s._gcScore !== undefined && s._gcCriteria) {
+    var gcDecColor = s._gcScore>=83?'var(--green)':s._gcScore>=67?'var(--amber)':'var(--red)';
+    h += '<div style="margin:12px 0;background:var(--bg3);border-radius:10px;padding:12px 14px">';
+    h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+    h += '<span style="font-size:12px;font-weight:700;color:var(--text)">⭐ Great Company Score</span>';
+    h += '<span style="font-family:DM Mono,monospace;font-size:18px;font-weight:800;color:'+gcDecColor+'">'+s._gcScore+'%</span>';
+    h += '</div>';
+    s._gcCriteria.forEach(function(c) {
+      var icon = c.pass ? '✓' : (c.estimated ? '~' : '✗');
+      var color = c.pass ? 'var(--green)' : (c.estimated ? 'var(--amber)' : 'var(--red)');
+      var bg = c.pass ? 'rgba(5,150,105,.07)' : (c.estimated ? 'rgba(217,119,6,.07)' : 'rgba(220,38,38,.07)');
+      var valStr = c.value > 0 ? c.value.toFixed(1)+c.unit : 'N/A';
+      var meanStr = c.mean !== null ? ' · Sector avg: '+c.mean.toFixed(1)+c.unit : '';
+      var thr = c.direction==='above' ? '≥'+c.threshold+c.unit : '≤'+c.threshold+c.unit;
+      h += '<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;background:'+bg+';margin-bottom:4px">';
+      h += '<span style="font-size:13px;font-weight:800;color:'+color+';width:14px">'+icon+'</span>';
+      h += '<div style="flex:1;font-size:10px"><strong style="color:var(--text)">'+c.label+'</strong> <span style="color:var(--text3)">('+thr+')</span><br>';
+      h += '<span style="color:'+color+';font-weight:700">'+valStr+'</span><span style="color:var(--text3)">'+meanStr+(c.estimated?' ~est.':'')+'</span></div>';
+      h += '</div>';
+    });
+    h += '</div>';
+  }
   h+='</div></div>';
   return h;
 }
@@ -5695,6 +5784,18 @@ function scoreStockUS(s, objective, riskLevel, divReq) {
   // ── Factor 5: SIGNAL (base 8%) ────────────────────────────────────
   var sigScore = s.sig === 'BUY' ? 100 : s.sig === 'HOLD' ? 60 : 15;
 
+  // ── GREAT COMPANY OVERRIDE ────────────────────────────────────────
+  // If Greatness Score is pre-computed, use it as the primary quality anchor.
+  // Stocks below 67% Greatness get a strong penalty regardless of other factors.
+  // Stocks at 100% Greatness get a significant bonus.
+  if (s._gcScore !== undefined) {
+    if (s._gcScore < 67)        score -= 25; // does not meet Great Company threshold
+    else if (s._gcScore === 100) score += 15; // perfect Great Company
+    else if (s._gcScore >= 83)  score += 8;  // qualifies as Great Company
+    // Greatness Score directly replaces part of quality scoring
+    qualityScore = (qualityScore * 0.6) + (s._gcScore * 0.4);
+  }
+
   // ── BASE WEIGHTS ─────────────────────────────────────────────────
   var wQuality=0.30, wMomentum=0.22, wGrowth=0.22, wValue=0.18, wSignal=0.08;
 
@@ -5917,6 +6018,14 @@ function scoreStock(s, objective, riskLevel, divReq) {
 
   // ── BASE WEIGHTS ─────────────────────────────────────────────────
   var wQuality=0.30, wMomentum=0.22, wGrowth=0.22, wValue=0.18, wSignal=0.08;
+
+  // ── GREAT COMPANY OVERRIDE (US) ───────────────────────────────────
+  if (s._gcScore !== undefined) {
+    if (s._gcScore < 67)        score -= 25;
+    else if (s._gcScore === 100) score += 15;
+    else if (s._gcScore >= 83)  score += 8;
+    qualityScore = (qualityScore * 0.6) + (s._gcScore * 0.4);
+  }
 
   // ── OBJECTIVE ADJUSTMENTS ────────────────────────────────────────
   if (objective === 'momentum') {
@@ -7791,6 +7900,16 @@ function renderMyDashboard() {
   }
   html += '</div></div>';
 
+  // ── GREAT COMPANY SAVED SCREENS ──────────────────────────────────
+  html += '<div class="udb-section" id="gc-saved-section">'
+    + '<div class="udb-section-hdr">'
+    + '<div class="udb-section-title">⭐ Saved Great Company Screens</div>'
+    + '<button onclick="var b=document.getElementById(\'tab-greatcompany\');if(b)b.click();" style="font-size:11px;background:rgba(217,119,6,.12);color:#d97706;border:1px solid rgba(217,119,6,.3);border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700">+ New Screen</button>'
+    + '</div>'
+    + '<div class="udb-section-body" id="gc-saved-list" style="padding:12px 16px">'
+    + '<div style="font-size:12px;color:var(--text3);text-align:center;padding:12px">Loading saved screens...</div>'
+    + '</div></div>';
+
   // ── REFERRAL CARD ─────────────────────────────────────────────────
   html += '<div class="udb-section" id="referral-card-section">'
     + '<div class="udb-section-hdr">'
@@ -7822,6 +7941,25 @@ function renderMyDashboard() {
 
   // Load referral stats after render
   if (currentUser && currentUser.id) loadReferralStats(currentUser.id);
+  if (currentUser && currentUser.id) gcLoadSavedScreens(function(screens) {
+    var listEl = document.getElementById('gc-saved-list');
+    if (!listEl) return;
+    if (!screens.length) {
+      listEl.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:12px">No saved screens yet. Run a screen in the ⭐ Great Company tab and save it.</div>';
+      return;
+    }
+    listEl.innerHTML = screens.map(function(s) {
+      return '<div class="gc-saved-card">'
+        + '<div style="flex:1;min-width:0">'
+        + '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px">'+s.name+'</div>'
+        + '<div style="font-size:11px;color:var(--text3)">'+s.total+' stocks · Top: '+s.top_picks+' · '+s.run_date+'</div>'
+        + '</div>'
+        + '<div style="display:flex;gap:6px;flex-shrink:0">'
+        + '<button onclick="gcViewSavedScreen(\''+s.id+'\')" style="background:rgba(217,119,6,.12);color:#d97706;border:1px solid rgba(217,119,6,.3);border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">👁 View</button>'
+        + '<button onclick="gcDeleteSavedScreen(\''+s.id+'\')" style="background:transparent;color:var(--red);border:1px solid rgba(220,38,38,.2);border-radius:6px;padding:5px 8px;font-size:11px;cursor:pointer">✕</button>'
+        + '</div></div>';
+    }).join('');
+  });
   } catch(err) {
     var el2 = document.getElementById('myspace-content');
     if (el2) el2.innerHTML = '<div style="text-align:center;padding:48px 24px;color:var(--text3)">'
@@ -8749,6 +8887,7 @@ function switchDashTab(name,el){
   else if(name==='screener'){if(typeof runScreener==='function')runScreener();}
   else if(name==='compare'){if(typeof renderCompare==='function')renderCompare();}
   else if(name==='myportfolio'){if(typeof renderMyPortfolioModule==='function')renderMyPortfolioModule();}
+  else if(name==='greatcompany'){if(typeof renderGreatCompanyScreen==='function')renderGreatCompanyScreen();}
   else if(name==='portfolio'){
     var _paid=currentUser&&(currentUser.plan==='pro'||currentUser.plan==='platinum'||currentUser.plan==='enterprise'||currentUser.isAdmin);
     if(!_paid&&!isInTrialPeriod()){
@@ -12840,6 +12979,460 @@ function mpGenerateReport() {
 
 // ══════════════════════════════════════════════════════════════════════
 // END MY PORTFOLIO MODULE
+// ══════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════
+// GREAT COMPANY STRATEGY — JJ's 6-Factor Quality Investment Framework
+// Based on: "Effective Investment Strategy: Understanding the Building
+// Blocks for Implementation" by Japheth Jev, Robotify Technologies
+// ══════════════════════════════════════════════════════════════════════
+
+var GC_FINANCIAL_SECTORS = ['Banking', 'Insurance', 'Financial Services', 'Finance'];
+var GC_SAVED_KEY = 'gc_saved_screens_v1';
+
+// ── STEP 1: Compute dynamic sector means from own stock database ───────
+function gcComputeSectorMeans(pool) {
+  var sectors = {};
+  pool.forEach(function(s) {
+    var sec = s.sec || 'Other';
+    if (!sectors[sec]) sectors[sec] = { gpm:[], ebitdam:[], roe:[], pe:[], evEbitda:[], de:[], count:0 };
+    var d = sectors[sec];
+    var gpm = parseFloat((s.gpm||'0').replace('%','')) || 0;
+    var ebitdam = parseFloat((s.ebitda||'0').replace(/[₦$,B]/g,'')) > 0 && parseFloat((s.rev||'1').replace(/[₦$,T]/g,'')) > 0
+      ? (parseFloat((s.ebitda||'0').replace(/[₦$,B]/g,'')) / parseFloat((s.rev||'1').replace(/[₦$,T]/g,'')) * 100)
+      : parseFloat((s.npm||'0').replace('%','')) * 1.4 || 0; // fallback estimate
+    var roe = parseFloat((s.roe||'0').replace('%','')) || 0;
+    var pe = parseFloat(s.pe) || 0;
+    var de = parseFloat((s.de||'0').replace('x','')) || 0;
+    // EV/EBITDA proxy: if not directly available, use PE * 0.6
+    var evEbitda = s.evEbitda ? parseFloat(s.evEbitda) : (pe > 0 ? pe * 0.6 : 0);
+
+    if (gpm > 0)     d.gpm.push(gpm);
+    if (ebitdam > 0) d.ebitdam.push(ebitdam);
+    if (roe > 0)     d.roe.push(roe);
+    if (pe > 0)      d.pe.push(pe);
+    if (evEbitda > 0)d.evEbitda.push(evEbitda);
+    if (de >= 0)     d.de.push(de);
+    d.count++;
+  });
+
+  var means = {};
+  Object.keys(sectors).forEach(function(sec) {
+    var d = sectors[sec];
+    function avg(arr) { return arr.length ? arr.reduce(function(a,b){return a+b;},0)/arr.length : null; }
+    means[sec] = {
+      gpm:     avg(d.gpm),
+      ebitdam: avg(d.ebitdam),
+      roe:     avg(d.roe),
+      pe:      avg(d.pe),
+      evEbitda:avg(d.evEbitda),
+      de:      avg(d.de),
+      count:   d.count
+    };
+  });
+  return means;
+}
+
+// ── STEP 2: Score a single stock against the 6 criteria ───────────────
+function gcScoreStock(s, sectorMeans) {
+  var sec = s.sec || 'Other';
+  var isFinancial = GC_FINANCIAL_SECTORS.indexOf(sec) >= 0;
+  var mean = sectorMeans[sec] || {};
+
+  // Parse values
+  var gpm     = parseFloat((s.gpm||'0').replace('%','')) || 0;
+  var revNum  = parseFloat((s.rev||'1').replace(/[₦$,T]/g,'').replace(/[₦$,B]/g,'')) || 1;
+  var ebitdaN = parseFloat((s.ebitda||'0').replace(/[₦$,B]/g,'')) || 0;
+  var ebitdam = ebitdaN > 0 && revNum > 0 ? (ebitdaN / revNum * 100) : (parseFloat((s.npm||'0').replace('%','')) * 1.4 || 0);
+  var roe     = parseFloat((s.roe||'0').replace('%','')) || 0;
+  var pe      = parseFloat(s.pe) || 0;
+  var de      = parseFloat((s.de||'0').replace('x','')) || 0;
+  var evEbitda = s.evEbitda ? parseFloat(s.evEbitda) : (pe > 0 ? pe * 0.6 : 0);
+  var evEstimated = !s.evEbitda && pe > 0;
+
+  // For financials: substitute EBITDA margin for GP% in criterion 1
+  var gp1Value    = isFinancial ? ebitdam : gpm;
+  var gp1Mean     = isFinancial ? mean.ebitdam : mean.gpm;
+  var gp1Threshold= isFinancial ? 15 : 35;
+  var gp1Label    = isFinancial ? 'EBITDA Margin (sub. for GP%)' : 'Gross Profit Margin';
+
+  // 6 criteria checks
+  var c = [
+    {
+      label: gp1Label,
+      value: gp1Value,
+      mean:  gp1Mean,
+      unit:  '%',
+      threshold: gp1Threshold,
+      direction: 'above', // higher is better
+      pass: gp1Value >= gp1Threshold && (gp1Mean === null || gp1Value >= gp1Mean),
+      estimated: false
+    },
+    {
+      label: 'EBITDA Margin',
+      value: ebitdam,
+      mean:  mean.ebitdam,
+      unit:  '%',
+      threshold: 15,
+      direction: 'above',
+      pass: ebitdam >= 15 && (mean.ebitdam === null || ebitdam >= mean.ebitdam),
+      estimated: false
+    },
+    {
+      label: 'Return on Equity (ROE)',
+      value: roe,
+      mean:  mean.roe,
+      unit:  '%',
+      threshold: 15,
+      direction: 'above',
+      pass: roe >= 15 && (mean.roe === null || roe >= mean.roe),
+      estimated: false
+    },
+    {
+      label: 'Price-to-Earnings (P/E)',
+      value: pe,
+      mean:  mean.pe,
+      unit:  'x',
+      threshold: 20,
+      direction: 'below', // lower is better
+      pass: pe > 0 && pe <= 20 && (mean.pe === null || pe <= mean.pe),
+      estimated: false
+    },
+    {
+      label: 'EV/EBITDA',
+      value: evEbitda,
+      mean:  mean.evEbitda,
+      unit:  'x',
+      threshold: 10,
+      direction: 'below',
+      pass: evEbitda > 0 && evEbitda <= 10 && (mean.evEbitda === null || evEbitda <= mean.evEbitda),
+      estimated: evEstimated
+    },
+    {
+      label: 'Debt-to-Equity (D/E)',
+      value: de,
+      mean:  mean.de,
+      unit:  'x',
+      threshold: 0.5,
+      direction: 'below',
+      pass: de >= 0 && de <= 0.5 && (mean.de === null || de <= mean.de),
+      estimated: false
+    }
+  ];
+
+  var passed = c.filter(function(x){ return x.pass; }).length;
+  var greatnessScore = Math.round(passed / 6 * 100);
+
+  var decision, decisionColor, decisionBg;
+  if (greatnessScore === 100) {
+    decision = 'STRONG BUY'; decisionColor = '#059669'; decisionBg = 'rgba(5,150,105,.12)';
+  } else if (greatnessScore >= 83) {
+    decision = 'BUY'; decisionColor = '#059669'; decisionBg = 'rgba(5,150,105,.08)';
+  } else if (greatnessScore >= 67) {
+    decision = 'HOLD'; decisionColor = '#d97706'; decisionBg = 'rgba(217,119,6,.08)';
+  } else {
+    decision = 'DO NOT INVEST'; decisionColor = '#dc2626'; decisionBg = 'rgba(220,38,38,.08)';
+  }
+
+  return { criteria: c, passed: passed, greatnessScore: greatnessScore, decision: decision, decisionColor: decisionColor, decisionBg: decisionBg };
+}
+
+// ── STEP 3: Render the main Great Company screen ───────────────────────
+function renderGreatCompanyScreen() {
+  var root = document.getElementById('gc-root');
+  if (!root) return;
+
+  var isPaid = currentUser && (currentUser.plan === 'pro' || currentUser.plan === 'enterprise' || currentUser.isAdmin);
+  if (!isPaid) {
+    root.innerHTML = '<div style="text-align:center;padding:60px 24px">'
+      + '<div style="font-size:48px;margin-bottom:14px">⭐</div>'
+      + '<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:var(--text);margin-bottom:10px">Great Company Strategy</div>'
+      + '<div style="font-size:13px;color:var(--text3);max-width:440px;margin:0 auto 24px;line-height:1.8">Screen stocks using JJ\'s proprietary 6-factor quality framework. Available on the <strong>Pro</strong> plan.</div>'
+      + '<button class="btn btn-gold" onclick="openUpgradeModal()" style="font-size:14px;padding:13px 28px">Upgrade to Pro</button>'
+      + '</div>';
+    return;
+  }
+
+  root.innerHTML = '<div class="gc-card" id="gc-controls">'
+    + '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px">'
+    + '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:var(--text)">⭐ Great Company Strategy</div>'
+    + '<span style="font-size:11px;color:var(--text3)">6-Factor Quality Screen · JJ\'s Proprietary Framework</span>'
+    + '</div>'
+    + '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">'
+    + '<select id="gc-market" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text)">'
+    + '<option value="ngx">🇳🇬 NGX — Nigerian Stocks</option>'
+    + '<option value="us">🇺🇸 US — American Stocks</option>'
+    + '<option value="all">🌍 Both Markets</option>'
+    + '</select>'
+    + '<select id="gc-sector" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text)">'
+    + '<option value="all">All Sectors</option>'
+    + '<option value="Banking">Banking</option>'
+    + '<option value="Insurance">Insurance</option>'
+    + '<option value="Oil & Gas">Oil & Gas</option>'
+    + '<option value="Industrial Goods">Industrial Goods</option>'
+    + '<option value="Consumer Goods">Consumer Goods</option>'
+    + '<option value="Agriculture">Agriculture</option>'
+    + '<option value="Technology">Technology</option>'
+    + '<option value="Healthcare">Healthcare</option>'
+    + '<option value="Utilities">Utilities</option>'
+    + '</select>'
+    + '<select id="gc-minscore" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text)">'
+    + '<option value="0">All Scores</option>'
+    + '<option value="67">67%+ (HOLD & above)</option>'
+    + '<option value="83" selected>83%+ (BUY & above)</option>'
+    + '<option value="100">100% only (STRONG BUY)</option>'
+    + '</select>'
+    + '<button onclick="gcRunScreen()" class="btn btn-gold">⭐ Run Screen</button>'
+    + '</div>'
+    + '<div style="background:linear-gradient(135deg,rgba(217,119,6,.08),rgba(180,83,9,.05));border:1px solid rgba(217,119,6,.2);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--text3);line-height:1.7">'
+    + '<strong style="color:var(--amber)">Great Company Criteria:</strong> '
+    + 'GP% ≥35% · EBITDA Margin ≥15% · ROE ≥15% · P/E ≤20x · EV/EBITDA ≤10x · D/E ≤50% — '
+    + 'each criterion must also beat its <strong>sector average</strong>. Score = criteria passed / 6.'
+    + '</div>'
+    + '</div>'
+    + '<div id="gc-results" style="margin-top:4px">'
+    + '<div style="text-align:center;padding:40px;color:var(--text3)">'
+    + '<div style="font-size:36px;margin-bottom:10px">⭐</div>'
+    + '<div style="font-size:13px">Click <strong>Run Screen</strong> to score all stocks using the Great Company framework</div>'
+    + '</div></div>'
+    + gcRenderSavedScreens();
+}
+
+function gcRunScreen() {
+  var market = document.getElementById('gc-market').value;
+  var sector = document.getElementById('gc-sector').value;
+  var minScore = parseInt(document.getElementById('gc-minscore').value) || 0;
+
+  var resultsEl = document.getElementById('gc-results');
+  if (resultsEl) resultsEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)"><div style="font-size:24px;margin-bottom:8px">⏳</div><div style="font-size:13px">Scoring stocks against the 6 Great Company criteria...</div></div>';
+
+  setTimeout(function() {
+    // Build pool
+    var pool = [];
+    if (market === 'ngx' || market === 'all') pool = pool.concat(typeof STOCKS !== 'undefined' ? STOCKS : []);
+    if (market === 'us'  || market === 'all') pool = pool.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
+    if (sector !== 'all') pool = pool.filter(function(s){ return s.sec === sector; });
+
+    // Compute sector means from full pool (not filtered) for accurate comparisons
+    var fullPool = [];
+    if (market === 'ngx' || market === 'all') fullPool = fullPool.concat(typeof STOCKS !== 'undefined' ? STOCKS : []);
+    if (market === 'us'  || market === 'all') fullPool = fullPool.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
+    var sectorMeans = gcComputeSectorMeans(fullPool);
+
+    // Score all stocks
+    var scored = pool.map(function(s) {
+      return { stock: s, result: gcScoreStock(s, sectorMeans) };
+    }).filter(function(x){ return x.result.greatnessScore >= minScore; })
+      .sort(function(a,b){ return b.result.greatnessScore - a.result.greatnessScore; });
+
+    window._gcLastResults = scored;
+    window._gcLastMeans = sectorMeans;
+    gcRenderResults(scored, sectorMeans, minScore);
+  }, 100);
+}
+
+function gcRenderResults(scored, sectorMeans, minScore) {
+  var resultsEl = document.getElementById('gc-results');
+  if (!resultsEl) return;
+
+  if (!scored.length) {
+    resultsEl.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">'
+      + '<div style="font-size:32px;margin-bottom:10px">📋</div>'
+      + '<div style="font-size:13px;font-weight:600;color:var(--text)">No stocks meet the criteria</div>'
+      + '<div style="font-size:12px;margin-top:4px">Try lowering the minimum score filter</div>'
+      + '</div>';
+    return;
+  }
+
+  // Summary bar
+  var total100 = scored.filter(function(x){ return x.result.greatnessScore === 100; }).length;
+  var total83  = scored.filter(function(x){ return x.result.greatnessScore >= 83; }).length;
+  var html = '<div class="gc-card" style="background:linear-gradient(135deg,#1a1a2e,#1e3a5f);border:none;margin-bottom:14px">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">'
+    + '<div>'
+    + '<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:#fff">' + scored.length + ' stocks qualify</div>'
+    + '<div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px">'
+    + total100 + ' Strong BUY · ' + (total83 - total100) + ' BUY · ' + (scored.length - total83) + ' HOLD'
+    + '</div></div>'
+    + '<div style="display:flex;gap:8px">'
+    + '<button onclick="gcSaveScreen()" style="background:#d97706;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer">💾 Save Screen</button>'
+    + '</div></div></div>';
+
+  // Stock cards
+  scored.forEach(function(item) {
+    var s = item.stock;
+    var r = item.result;
+    var sym = s.market === 'US' ? '$' : '₦';
+
+    // Score ring colour
+    var ringColor = r.greatnessScore === 100 ? '#059669' : r.greatnessScore >= 83 ? '#059669' : r.greatnessScore >= 67 ? '#d97706' : '#dc2626';
+
+    html += '<div class="gc-card" style="margin-bottom:12px">';
+
+    // Header row
+    html += '<div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;flex-wrap:wrap">';
+
+    // Score ring
+    html += '<div class="gc-score-ring" style="border-color:'+ringColor+';color:'+ringColor+'">' + r.greatnessScore + '%</div>';
+
+    // Stock info
+    html += '<div style="flex:1;min-width:0">'
+      + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px">'
+      + '<span style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:var(--text)">'+s.t+'</span>'
+      + '<span style="font-size:12px;color:var(--text3)">'+s.n+'</span>'
+      + '<span style="background:rgba(26,86,219,.1);color:var(--primary);font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px">'+s.sec+'</span>'
+      + '</div>'
+      + '<div style="font-size:11px;color:var(--text3)">'+sym+Number(s.price).toLocaleString()+' · P/E '+(s.pe||'N/A')+'x · ROE '+(s.roe||'N/A')+'</div>'
+      + '</div>';
+
+    // Decision badge
+    html += '<div style="background:'+r.decisionBg+';border-radius:10px;padding:10px 16px;text-align:center;flex-shrink:0">'
+      + '<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:'+r.decisionColor+'">'+r.decision+'</div>'
+      + '<div style="font-size:10px;color:var(--text3);margin-top:2px">'+r.passed+'/6 criteria pass</div>'
+      + '</div>';
+
+    html += '</div>';
+
+    // 6 criteria breakdown
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">';
+    r.criteria.forEach(function(c) {
+      var cls = c.estimated ? 'est' : (c.pass ? 'pass' : 'fail');
+      var icon = c.pass ? '✓' : (c.estimated ? '~' : '✗');
+      var iconColor = c.pass ? 'var(--green)' : (c.estimated ? 'var(--amber)' : 'var(--red)');
+      var valStr = c.value > 0 ? c.value.toFixed(1) + c.unit : 'N/A';
+      var meanStr = c.mean !== null ? c.mean.toFixed(1) + c.unit : 'N/A';
+      var threshold = c.direction === 'above' ? '≥' + c.threshold + c.unit : '≤' + c.threshold + c.unit;
+
+      html += '<div class="gc-criterion ' + cls + '">'
+        + '<span style="font-size:14px;color:'+iconColor+';font-weight:800;width:16px;flex-shrink:0">'+icon+'</span>'
+        + '<div style="flex:1;min-width:0">'
+        + '<div style="font-size:11px;font-weight:700;color:var(--text)">'+c.label+' <span style="font-weight:400;color:var(--text3)">('+threshold+')</span></div>'
+        + '<div style="font-size:10px;color:var(--text3);margin-top:1px">'
+        + '<strong style="color:var(--text2)">'+valStr+'</strong>'
+        + (c.mean !== null ? ' · Sector avg: '+meanStr : ' · No sector avg')
+        + (c.estimated ? ' <span style="color:var(--amber)">(estimated)</span>' : '')
+        + '</div>'
+        + '</div></div>';
+    });
+    html += '</div>';
+    html += '</div>';
+  });
+
+  if (resultsEl) resultsEl.innerHTML = html;
+}
+
+// ── STEP 4: Save screen results to Supabase ────────────────────────────
+function gcSaveScreen() {
+  if (!window._gcLastResults || !window._gcLastResults.length) {
+    toast('Run a screen first before saving', 'error'); return;
+  }
+  var name = prompt('Name this screen (e.g. "NGX Quality July 2026"):');
+  if (!name || !name.trim()) return;
+
+  var market = (document.getElementById('gc-market') || {value:'ngx'}).value;
+  var sector = (document.getElementById('gc-sector') || {value:'all'}).value;
+  var minScore = parseInt((document.getElementById('gc-minscore') || {value:'83'}).value) || 83;
+  var today = new Date().toISOString().substring(0,10);
+
+  var entry = {
+    id:        'gc_' + Date.now(),
+    user_id:   currentUser ? currentUser.id : '',
+    name:      name.trim(),
+    market:    market,
+    sector:    sector,
+    min_score: minScore,
+    run_date:  today,
+    total:     window._gcLastResults.length,
+    top_picks: window._gcLastResults.slice(0,3).map(function(x){ return x.stock.t; }).join(', '),
+    results:   window._gcLastResults.map(function(x){
+      return { ticker: x.stock.t, name: x.stock.n, score: x.result.greatnessScore, decision: x.result.decision, passed: x.result.passed };
+    })
+  };
+
+  // Save to Supabase
+  if (!currentUser || !currentUser.id) { toast('Please log in to save screens', 'error'); return; }
+  var sb = getSupabase ? getSupabase() : null;
+  if (!sb) { toast('Database not available', 'error'); return; }
+
+  sb.from('gc_saved_screens').upsert({
+    id:        entry.id,
+    user_id:   entry.user_id,
+    name:      entry.name,
+    market:    entry.market,
+    sector:    entry.sector,
+    min_score: entry.min_score,
+    run_date:  entry.run_date,
+    total:     entry.total,
+    top_picks: entry.top_picks,
+    results:   entry.results
+  }, { onConflict: 'id' }).then(function(res) {
+    if (res.error) {
+      console.error('[GC] Save failed:', res.error.message);
+      toast('❌ Save failed: ' + res.error.message, 'error');
+    } else {
+      toast('✓ Screen "'+entry.name+'" saved — view it in My Dashboard', 'success');
+      // Also update My Dashboard section
+      if (typeof renderMyDashboard === 'function' && document.getElementById('dtab-myspace').classList.contains('active')) renderMyDashboard();
+    }
+  }).catch(function(e){ toast('❌ Save error: ' + e.message, 'error'); });
+}
+
+function gcRenderSavedScreens() {
+  // Placeholder — loaded async from Supabase when dashboard opens
+  return '';
+}
+
+// Called from My Dashboard to show saved screens
+function gcLoadSavedScreens(callback) {
+  if (!currentUser || !currentUser.id) { callback([]); return; }
+  var sb = getSupabase ? getSupabase() : null;
+  if (!sb) { callback([]); return; }
+  sb.from('gc_saved_screens').select('*').eq('user_id', currentUser.id).order('run_date', { ascending: false })
+    .then(function(res) {
+      callback(res.data || []);
+    }).catch(function(){ callback([]); });
+}
+
+function gcViewSavedScreen(screenId) {
+  if (!currentUser || !currentUser.id) return;
+  var sb = getSupabase ? getSupabase() : null;
+  if (!sb) return;
+  sb.from('gc_saved_screens').select('*').eq('id', screenId).single()
+    .then(function(res) {
+      if (!res.data) return;
+      var screen = res.data;
+      // Switch to great company tab and show results
+      var btn = document.getElementById('tab-greatcompany');
+      if (btn) btn.click();
+      setTimeout(function() {
+        // Set filters to match saved screen
+        var mktEl = document.getElementById('gc-market');
+        var secEl = document.getElementById('gc-sector');
+        var minEl = document.getElementById('gc-minscore');
+        if (mktEl) mktEl.value = screen.market || 'ngx';
+        if (secEl) secEl.value = screen.sector || 'all';
+        if (minEl) minEl.value = screen.min_score || 83;
+
+        // Re-run screen with these settings
+        gcRunScreen();
+        toast('Viewing: ' + screen.name + ' · Run on ' + screen.run_date, 'info');
+      }, 300);
+    });
+}
+
+function gcDeleteSavedScreen(screenId) {
+  if (!confirm('Delete this saved screen?')) return;
+  var sb = getSupabase ? getSupabase() : null;
+  if (!sb) return;
+  sb.from('gc_saved_screens').delete().eq('id', screenId)
+    .then(function() {
+      toast('Screen deleted', 'info');
+      if (typeof renderMyDashboard === 'function') renderMyDashboard();
+    });
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// END GREAT COMPANY STRATEGY
 // ══════════════════════════════════════════════════════════════════════
 </script>
 </body>
