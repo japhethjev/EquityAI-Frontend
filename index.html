@@ -7502,7 +7502,7 @@ function wlAdd(ticker) {
   wlSave(list);
 
   // Persist to Supabase
-  if (getSupabase() && currentUser && !currentUser.isAdmin) {
+  if (getSupabase() && currentUser && currentUser.id) {
     getSupabase().from('watchlist').upsert({
       user_id:     currentUser.id,
       ticker:      s.t,
@@ -7525,7 +7525,7 @@ function wlRemove(ticker) {
   wlSave(list);
 
   // Remove from Supabase
-  if (getSupabase() && currentUser && !currentUser.isAdmin) {
+  if (getSupabase() && currentUser && currentUser.id) {
     getSupabase().from('watchlist')
       .delete().eq('user_id', currentUser.id).eq('ticker', ticker)
       .then(function(){}).catch(function(){});
@@ -7552,7 +7552,7 @@ function updateWatchlistButtons(ticker, inWl) {
 // ── SYNC WATCHLIST FROM SUPABASE ──────────────────────────────────────
 async function wlSyncFromDB() {
   var sb = getSupabase();
-  if (!sb || !currentUser || currentUser.isAdmin) return;
+  if (!sb || !currentUser || !currentUser.id) return;
   try {
     var res = await sb.from('watchlist').select('*').eq('user_id', currentUser.id).order('added_at', {ascending:false});
     if (res.data && res.data.length) {
@@ -7647,10 +7647,79 @@ function saveCurrentPortfolio() {
   // Avoid duplicates — remove old version if it exists
   mpList = mpList.filter(function(p){ return p.id !== mpEntry.id; });
   mpList.unshift(mpEntry);
-  mpSaveAll(mpList);
+
+  // Save to Supabase directly and wait for confirmation before navigating
+  var sb = getSupabase ? getSupabase() : null;
+  if (sb && currentUser && currentUser.id) {
+    // Update all portfolios active flags first
+    var deactivatePromises = mpList.filter(function(p){ return p.id !== mpEntry.id; }).map(function(p) {
+      return sb.from('user_portfolios').upsert({
+        id: p.id, user_id: currentUser.id, name: p.name, currency: p.currency || 'NGN',
+        description: p.desc || '', holdings: p.holdings || [], active: false,
+        is_ai: !!p.isAI, ai_backtest: p.aiBacktest || null, ai_forward: p.aiForward || null,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' });
+    });
+
+    // Insert the new AI portfolio
+    var insertPromise = sb.from('user_portfolios').upsert({
+      id:          mpEntry.id,
+      user_id:     currentUser.id,
+      name:        mpEntry.name,
+      currency:    mpEntry.currency || 'NGN',
+      description: mpEntry.desc || '',
+      holdings:    mpEntry.holdings || [],
+      active:      true,
+      is_ai:       true,
+      ai_backtest: mpEntry.aiBacktest || null,
+      ai_forward:  mpEntry.aiForward || null,
+      updated_at:  new Date().toISOString()
+    }, { onConflict: 'id' });
+
+    Promise.all([insertPromise].concat(deactivatePromises)).then(function(results) {
+      var failed = results.filter(function(r){ return r && r.error; });
+      if (failed.length) {
+        console.error('[AI Portfolio] Supabase save failed:', failed[0].error.message);
+        toast('⚠️ Portfolio saved locally but cloud sync failed. Refresh to retry.', 'error');
+        // Still update cache and navigate
+        _mpCache = mpList;
+        try { localStorage.setItem(MP_KEY, JSON.stringify(mpList)); } catch(e) {}
+      } else {
+        console.log('[AI Portfolio] ✓ Saved to Supabase:', mpEntry.name);
+        // Update cache from Supabase authoritative response
+        _mpCache = mpList;
+        try { localStorage.setItem(MP_KEY, JSON.stringify(mpList)); } catch(e) {}
+      }
+      // Navigate to My Portfolio tab now that save is confirmed
+      toast('✓ Portfolio saved — opening in 📈 My Portfolio tab with live P&L tracking', 'success');
+      setTimeout(function() {
+        var mpTab = document.getElementById('tab-myportfolio');
+        if (mpTab) mpTab.click();
+      }, 400);
+      if (document.getElementById('dtab-myspace') && document.getElementById('dtab-myspace').classList.contains('active')) renderMyDashboard();
+    }).catch(function(e) {
+      console.error('[AI Portfolio] Save error:', e.message);
+      toast('⚠️ Save error — ' + e.message, 'error');
+      _mpCache = mpList;
+      try { localStorage.setItem(MP_KEY, JSON.stringify(mpList)); } catch(e2) {}
+      setTimeout(function() {
+        var mpTab = document.getElementById('tab-myportfolio');
+        if (mpTab) mpTab.click();
+      }, 400);
+    });
+  } else {
+    // No Supabase — just update cache and navigate
+    _mpCache = mpList;
+    try { localStorage.setItem(MP_KEY, JSON.stringify(mpList)); } catch(e) {}
+    toast('✓ Portfolio saved — opening in 📈 My Portfolio tab with live P&L tracking', 'success');
+    setTimeout(function() {
+      var mpTab = document.getElementById('tab-myportfolio');
+      if (mpTab) mpTab.click();
+    }, 400);
+  }
 
   // Persist to Supabase (both tables for cross-device sync)
-  if (getSupabase() && currentUser && !currentUser.isAdmin) {
+  if (getSupabase() && currentUser && currentUser.id) {
     var sb = getSupabase();
     // Existing saved_portfolios table
     sb.from('saved_portfolios').insert({
@@ -7680,14 +7749,8 @@ function saveCurrentPortfolio() {
       ai_data:    _portData.ai,
     }, { onConflict: 'id' }).then(function(){}).catch(function(){});
   }
-
-  toast('✓ Portfolio saved — opening in 📈 My Portfolio tab with live P&L tracking', 'success');
-  // Auto-navigate to My Portfolio tab so user sees the live P&L immediately
-  setTimeout(function() {
-    var mpTab = document.getElementById('tab-myportfolio');
-    if (mpTab) mpTab.click();
-  }, 800);
-  if (document.getElementById('dtab-myspace') && document.getElementById('dtab-myspace').classList.contains('active')) renderMyDashboard();
+  // Note: toast and navigation are handled inside the Promise.then() above
+  // to ensure they only fire after Supabase confirms the save.
 }
 
 // ── SAVED REPORTS HELPERS ─────────────────────────────────────────────
@@ -7723,7 +7786,7 @@ function saveValuationReport(ticker, reportData) {
   svrSave(list);
 
   // Persist to Supabase
-  if (getSupabase() && currentUser && !currentUser.isAdmin) {
+  if (getSupabase() && currentUser && currentUser.id) {
     getSupabase().from('saved_reports').upsert({
       user_id:      currentUser.id,
       ticker:       ticker,
@@ -8134,7 +8197,7 @@ async function syncUserData() {
   await wlSyncFromDB();
   // Sync portfolios from DB
   var sb = getSupabase();
-  if (!sb || !currentUser || currentUser.isAdmin) return;
+  if (!sb || !currentUser || !currentUser.id) return;
   try {
     var res = await sb.from('saved_portfolios').select('*').eq('user_id', currentUser.id).order('created_at', {ascending:false});
     if (res.data && res.data.length) {
@@ -11731,7 +11794,6 @@ function mpCalcPortfolio(port) {
 // ── MAIN RENDER ───────────────────────────────────────────────────────
 function renderMyPortfolioModule() {
   // Always fetch latest prices from server before rendering P&L
-  // This ensures portfolio values reflect today's closing prices
   var _srvUrl = (typeof SIGNAL_ENGINE !== 'undefined' && SIGNAL_ENGINE.SERVER_URL) ? SIGNAL_ENGINE.SERVER_URL : '';
   if (_srvUrl) {
     if (typeof SIGNAL_ENGINE.fetchNGXPrices === 'function') SIGNAL_ENGINE.fetchNGXPrices(_srvUrl);
@@ -11751,6 +11813,24 @@ function renderMyPortfolioModule() {
       + '</div>';
     return;
   }
+
+  // Always reload from Supabase (source of truth) to catch AI portfolios
+  // just saved from the AI Portfolio tab before rendering.
+  // Guard flag prevents infinite loop since mpLoadFromSupabase calls back here.
+  if (!window._mpRendering && typeof mpLoadFromSupabase === 'function' && currentUser && currentUser.id) {
+    var cached = mpGetAll();
+    if (!cached.length) {
+      root.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text3)">'
+        + '<div style="font-size:28px;margin-bottom:8px">⏳</div>'
+        + '<div style="font-size:13px;font-weight:600;color:var(--text)">Loading portfolios from cloud...</div>'
+        + '</div>';
+    }
+    window._mpRendering = true;
+    mpLoadFromSupabase().then(function() { window._mpRendering = false; })
+                        .catch(function() { window._mpRendering = false; });
+    return; // mpLoadFromSupabase calls renderMyPortfolioModule again when done
+  }
+  window._mpRendering = false;
 
   var all  = mpGetAll();
   var port = mpGetActive();
