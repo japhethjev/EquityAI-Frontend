@@ -11996,7 +11996,9 @@ function renderMyPortfolioModule() {
   // Always reload from Supabase (source of truth) to catch AI portfolios
   // just saved from the AI Portfolio tab before rendering.
   // Guard flag prevents infinite loop since mpLoadFromSupabase calls back here.
-  if (!window._mpRendering && typeof mpLoadFromSupabase === 'function' && currentUser && currentUser.id) {
+  // _mpSkipReload flag is set by mpSetActive to prevent reload from overwriting
+  // the active flag that was just saved to Supabase.
+  if (!window._mpRendering && !window._mpSkipReload && typeof mpLoadFromSupabase === 'function' && currentUser && currentUser.id) {
     var cached = mpGetAll();
     if (!cached.length) {
       root.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text3)">'
@@ -12010,6 +12012,7 @@ function renderMyPortfolioModule() {
     return; // mpLoadFromSupabase calls renderMyPortfolioModule again when done
   }
   window._mpRendering = false;
+  window._mpSkipReload = false; // reset after use
 
   var all  = mpGetAll();
   var port = mpGetActive();
@@ -13060,8 +13063,37 @@ function mpCreatePortfolio() {
 function mpSetActive(portId) {
   var all = mpGetAll();
   all.forEach(function(p){ p.active = (p.id === portId); });
-  mpSaveAll(all);
-  renderMyPortfolioModule();
+
+  // Update cache immediately so the UI reflects the switch instantly
+  _mpCache = all;
+  try { localStorage.setItem(MP_KEY, JSON.stringify(all)); } catch(e) {}
+
+  // Save to Supabase — upsert active flag for all portfolios
+  var sb = getSupabase ? getSupabase() : null;
+  if (sb && currentUser && currentUser.id) {
+    var promises = all.map(function(p) {
+      return sb.from('user_portfolios').upsert({
+        id: p.id, user_id: currentUser.id, name: p.name,
+        currency: p.currency || 'NGN', description: p.desc || '',
+        holdings: p.holdings || [], active: !!p.active,
+        is_ai: !!p.isAI, ai_backtest: p.aiBacktest || null,
+        ai_forward: p.aiForward || null, updated_at: new Date().toISOString()
+      }, { onConflict: 'id' });
+    });
+    Promise.all(promises).then(function() {
+      // Only render after Supabase confirms — prevents reload from reverting active flag
+      window._mpRendering = false;
+      window._mpSkipReload = true; // use cache directly — active flag already saved
+      renderMyPortfolioModule();
+    }).catch(function() {
+      window._mpRendering = false;
+      window._mpSkipReload = true;
+      renderMyPortfolioModule();
+    });
+  } else {
+    window._mpSkipReload = true;
+    renderMyPortfolioModule();
+  }
 }
 
 function mpDelete(portId) {
