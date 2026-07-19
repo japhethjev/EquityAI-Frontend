@@ -9089,7 +9089,13 @@ function switchDashTab(name,el){
   else if(name==='watchlist'){if(typeof buildStockGrid==='function')buildStockGrid(visibleStocks);}
   else if(name==='screener'){if(typeof runScreener==='function')runScreener();}
   else if(name==='compare'){if(typeof renderCompare==='function')renderCompare();}
-  else if(name==='myportfolio'){if(typeof renderMyPortfolioModule==='function')renderMyPortfolioModule();}
+  else if(name==='myportfolio'){
+    // Clear cache on tab open so Supabase is always queried fresh
+    // This ensures portfolios saved from other tabs appear immediately
+    _mpCache = null;
+    window._mpSkipReload = false;
+    if(typeof renderMyPortfolioModule==='function') renderMyPortfolioModule();
+  }
   else if(name==='greatcompany'){if(typeof renderGreatCompanyScreen==='function')renderGreatCompanyScreen();}
   else if(name==='portfolio'){
     var _paid=currentUser&&(currentUser.plan==='pro'||currentUser.plan==='platinum'||currentUser.plan==='enterprise'||currentUser.isAdmin);
@@ -11993,26 +11999,22 @@ function renderMyPortfolioModule() {
     return;
   }
 
-  // Always reload from Supabase (source of truth) to catch AI portfolios
-  // just saved from the AI Portfolio tab before rendering.
-  // Guard flag prevents infinite loop since mpLoadFromSupabase calls back here.
-  // _mpSkipReload flag is set by mpSetActive to prevent reload from overwriting
-  // the active flag that was just saved to Supabase.
-  if (!window._mpRendering && !window._mpSkipReload && typeof mpLoadFromSupabase === 'function' && currentUser && currentUser.id) {
-    var cached = mpGetAll();
-    if (!cached.length) {
-      root.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text3)">'
-        + '<div style="font-size:28px;margin-bottom:8px">⏳</div>'
-        + '<div style="font-size:13px;font-weight:600;color:var(--text)">Loading portfolios...</div>'
-        + '</div>';
-    }
+  // Reload from Supabase only on first open of the tab (when cache is empty)
+  // or when explicitly triggered (e.g. after saving an AI portfolio).
+  // Never reload during portfolio switching — it overwrites the active flag.
+  var _cacheEmpty = !_mpCache || _mpCache.length === 0;
+  if (!window._mpRendering && !window._mpSkipReload && _cacheEmpty && typeof mpLoadFromSupabase === 'function' && currentUser && currentUser.id) {
+    root.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text3)">'
+      + '<div style="font-size:28px;margin-bottom:8px">⏳</div>'
+      + '<div style="font-size:13px;font-weight:600;color:var(--text)">Loading portfolios...</div>'
+      + '</div>';
     window._mpRendering = true;
     mpLoadFromSupabase().then(function() { window._mpRendering = false; })
                         .catch(function() { window._mpRendering = false; });
-    return; // mpLoadFromSupabase calls renderMyPortfolioModule again when done
+    return;
   }
   window._mpRendering = false;
-  window._mpSkipReload = false; // reset after use
+  window._mpSkipReload = false;
 
   var all  = mpGetAll();
   var port = mpGetActive();
@@ -13062,37 +13064,29 @@ function mpCreatePortfolio() {
 
 function mpSetActive(portId) {
   var all = mpGetAll();
-  all.forEach(function(p){ p.active = (p.id === portId); });
+  if (!all.length) return;
 
-  // Update cache immediately so the UI reflects the switch instantly
+  // Update active flag in cache immediately
+  all.forEach(function(p){ p.active = (p.id === portId); });
   _mpCache = all;
   try { localStorage.setItem(MP_KEY, JSON.stringify(all)); } catch(e) {}
 
-  // Save to Supabase — upsert active flag for all portfolios
+  // Render immediately from cache — no Supabase reload
+  window._mpSkipReload = true;
+  renderMyPortfolioModule();
+
+  // Save active flag to Supabase in background (fire and forget)
   var sb = getSupabase ? getSupabase() : null;
   if (sb && currentUser && currentUser.id) {
-    var promises = all.map(function(p) {
-      return sb.from('user_portfolios').upsert({
+    all.forEach(function(p) {
+      sb.from('user_portfolios').upsert({
         id: p.id, user_id: currentUser.id, name: p.name,
         currency: p.currency || 'NGN', description: p.desc || '',
         holdings: p.holdings || [], active: !!p.active,
         is_ai: !!p.isAI, ai_backtest: p.aiBacktest || null,
         ai_forward: p.aiForward || null, updated_at: new Date().toISOString()
-      }, { onConflict: 'id' });
+      }, { onConflict: 'id' }).then(function(){}).catch(function(){});
     });
-    Promise.all(promises).then(function() {
-      // Only render after Supabase confirms — prevents reload from reverting active flag
-      window._mpRendering = false;
-      window._mpSkipReload = true; // use cache directly — active flag already saved
-      renderMyPortfolioModule();
-    }).catch(function() {
-      window._mpRendering = false;
-      window._mpSkipReload = true;
-      renderMyPortfolioModule();
-    });
-  } else {
-    window._mpSkipReload = true;
-    renderMyPortfolioModule();
   }
 }
 
