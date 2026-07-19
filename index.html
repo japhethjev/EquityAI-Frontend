@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<!-- saved from url=(0049)file:///C:/Users/Admin/Downloads/index%20(1).html -->
-<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-
+<html lang="en">
+<head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EquityAI — AI-Powered Nigerian Stock Intelligence</title>
-<link href="./index_files/css2" rel="stylesheet">
-<script src="./index_files/supabase.min.js.download"></script>
-<script src="./index_files/api.js.download"></script>
-<script src="./index_files/client" async="" defer=""></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://apis.google.com/js/api.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 /* ═══════════════════════════════════════════════════════════════
    EQUITYAI — WHITE & BLUE FINTECH DESIGN SYSTEM
@@ -858,7 +858,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
 .vr-step-dot.done{background:var(--green)}.vr-step-dot.active{background:var(--primary);animation:pulse 1.5s infinite}
 .vr-cached-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;background:rgba(5,150,105,.08);color:var(--green);border:1px solid rgba(5,150,105,.2);padding:2px 8px;border-radius:20px;margin-left:8px}
 </style>
-<style id="googleidentityservice_button_styles">.qJTHM{-moz-user-select:none;-webkit-user-select:none;-ms-user-select:none;color:#202124;direction:ltr;-webkit-touch-callout:none;font-family:Roboto-Regular,arial,sans-serif;-webkit-font-smoothing:antialiased;font-weight:400;margin:0;overflow:hidden;-webkit-text-size-adjust:100%}.ynRLnc{left:-9999px;position:absolute;top:-9999px}.L6cTce{display:none}.bltWBb{overflow-wrap:break-word;word-break:break-word}.hSRGPd{color:#1a73e8;cursor:pointer;font-weight:500;text-decoration:none}.Bz112c-W3lGp{height:16px;width:16px}.Bz112c-E3DyYd{height:20px;width:20px}.Bz112c-r9oPif{height:24px;width:24px}.Bz112c-u2z5K{height:36px;width:36px}.Bz112c-uaxL4e{border-radius:10px}.LgbsSe-Bz112c{display:block}.S9gUrf-YoZ4jf{border:none;margin:0;padding:0}.S9gUrf-YoZ4jf *{border:none;margin:0;padding:0}.fFW7wc-ibnC6b>.aZ2wEe>div{border-color:#4285f4}.P1ekSe-ZMv3u{-webkit-transition:height .2s linear;transition:height .2s linear}.P1ekSe-ZMv3u>div:first-child{background-color:#1a73e8!important;-webkit-transition:width .3s linear;transition:width .3s linear}.P1ekSe-ZMv3u>div:nth-child(2){background-image:-webkit-gradient(linear,left top,right top,from(rgba(255,255,255,.7)),to(rgba(255,255,255,.7))),-webkit-gradient(linear,left top,right top,from(#1a73e8),to(#1a73e8))!important;background-image:-webkit-linear-gradient(left,rgba(255,255,255,.7),rgba(255,255,255,.7)),-webkit-linear-gradient(left,#1a73e8,#1a73e8)!important;background-image:linear-gradient(90deg,rgba(255,255,255,.7),rgba(255,255,255,.7)),linear-gradient(90deg,#1a73e8,#1a73e8)!important}.P1ekSe-ZMv3u>div:nth-child(3){background-image:-webkit-gradient(linear,left top,right top,from(rgba(255,255,255,.7)),to(rgba(255,255,255,.7))),-webkit-gradient(linear,left top,right top,from(#1a73e8),to(#1a73e8))!important;background-image:-webkit-linear-gradient(left,rgba(255,255,255,.7),rgba(255,255,255,.7)),-webkit-linear-gradient(left,#1a73e8,#1a73e8)!important;background-image:linear-gradient(90deg,rgba(255,255,255,.7),rgba(255,255,255,.7)),linear-gradient(90deg,#1a73e8,#1a73e8)!important}.haAclf{display:inline-block}.nsm7Bb-HzV7m-LgbsSe{border-radius:4px;box-sizing:border-box;-webkit-transition:background-color .218s,border-color .218s;transition:background-color .218s,border-color .218s;-moz-user-select:none;-webkit-user-select:none;-ms-user-select:none;-webkit-appearance:none;background-color:#fff;background-image:none;border:1px solid #dadce0;color:#3c4043;cursor:pointer;font-family:Google Sans,arial,sans-serif;font-size:.875rem;height:40px;letter-spacing:.25px;outline:none;overflow:hidden;padding:0 12px;position:relative;text-align:center;vertical-align:middle;white-space:nowrap;width:auto}@media screen and (-ms-high-contrast:active){.nsm7Bb-HzV7m-LgbsSe{border:2px solid windowText;color:windowText}}@media screen and (preferes-contrast:more){.nsm7Bb-HzV7m-LgbsSe{color:#000}}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe{font-size:.875rem;height:32px;letter-spacing:.25px;padding:0 10px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe{font-size:.6875rem;height:20px;letter-spacing:.3px;padding:0 8px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe{padding:0;width:40px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.pSzOP-SxQuSe{width:32px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.purZT-SxQuSe{width:20px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK{border-radius:20px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK.pSzOP-SxQuSe{border-radius:16px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK.purZT-SxQuSe{border-radius:10px}.nsm7Bb-HzV7m-LgbsSe.i5vt6e-to915-Ia7Qfc{border:1px solid #8e918f;background-color:#131314;color:#e3e3e3}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc{border:none;color:#fff}.nsm7Bb-HzV7m-LgbsSe.MFS4be-v3pZbf-Ia7Qfc{background-color:#1a73e8}.nsm7Bb-HzV7m-LgbsSe.MFS4be-JaPV2b-Ia7Qfc{background-color:#202124;color:#e8eaed}@media screen and (prefers-contrast:more){.nsm7Bb-HzV7m-LgbsSe.MFS4be-JaPV2b-Ia7Qfc{color:#fff}}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:18px;margin-right:8px;min-width:18px;width:18px}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:14px;min-width:14px;width:14px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:10px;min-width:10px;width:10px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin-left:8px;margin-right:-4px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin:0;padding:10px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{padding:8px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{padding:4px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-top-left-radius:3px;border-bottom-left-radius:3px;display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-pack:center;-webkit-justify-content:center;justify-content:center;-webkit-box-align:center;-webkit-align-items:center;align-items:center;background-color:#fff;height:36px;margin-left:-10px;margin-right:12px;min-width:36px;width:36px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf .nsm7Bb-HzV7m-LgbsSe-Bz112c,.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin:0;padding:0}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{height:28px;margin-left:-8px;margin-right:10px;min-width:28px;width:28px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{height:16px;margin-left:-6px;margin-right:8px;min-width:16px;width:16px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:3px;margin-left:2px;margin-right:0;padding:0}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:18px}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:14px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:8px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-bN97Pc-sM5MNb{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-align-items:center;-webkit-box-align:center;align-items:center;-webkit-flex-direction:row;-webkit-box-orient:horizontal;-webkit-box-direction:normal;flex-direction:row;-webkit-box-pack:justify;-webkit-justify-content:space-between;justify-content:space-between;-webkit-flex-wrap:nowrap;flex-wrap:nowrap;height:100%;position:relative;width:100%}.nsm7Bb-HzV7m-LgbsSe .oXtfBe-l4eHX{-webkit-box-pack:center;-webkit-justify-content:center;justify-content:center}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-BPrWId{-webkit-flex-grow:1;-webkit-box-flex:1;flex-grow:1;font-family:Google Sans,arial,sans-serif;font-weight:500;overflow:hidden;text-overflow:ellipsis;vertical-align:top}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-BPrWId{font-weight:300}.nsm7Bb-HzV7m-LgbsSe .oXtfBe-l4eHX .nsm7Bb-HzV7m-LgbsSe-BPrWId{-webkit-flex-grow:0;-webkit-box-flex:0;flex-grow:0}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-MJoBVe{-webkit-transition:background-color .218s;transition:background-color .218s;bottom:0;left:0;position:absolute;right:0;top:0}.nsm7Bb-HzV7m-LgbsSe:focus,.nsm7Bb-HzV7m-LgbsSe:hover{box-shadow:none;border-color:rgb(210,227,252);outline:none}.nsm7Bb-HzV7m-LgbsSe:focus-within{outline:2px solid #00639b;border-color:transparent}.nsm7Bb-HzV7m-LgbsSe:hover .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(66,133,244,.08)}.nsm7Bb-HzV7m-LgbsSe:active .nsm7Bb-HzV7m-LgbsSe-MJoBVe,.nsm7Bb-HzV7m-LgbsSe:focus .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(66,133,244,.1)}.nsm7Bb-HzV7m-LgbsSe.i5vt6e-to915-Ia7Qfc:hover .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.08)}.nsm7Bb-HzV7m-LgbsSe.i5vt6e-to915-Ia7Qfc:active .nsm7Bb-HzV7m-LgbsSe-MJoBVe,.nsm7Bb-HzV7m-LgbsSe.i5vt6e-to915-Ia7Qfc:focus .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.12)}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:hover .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.24)}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:active .nsm7Bb-HzV7m-LgbsSe-MJoBVe,.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:focus .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.32)}.nsm7Bb-HzV7m-LgbsSe .n1UuX-DkfjY{border-radius:50%;display:-webkit-box;display:-webkit-flex;display:flex;height:20px;margin-left:-4px;margin-right:8px;min-width:20px;width:20px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId{font-family:Roboto;font-size:12px;text-align:left}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff .fmcmS,.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .ssJRIf{overflow:hidden;text-overflow:ellipsis}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-align-items:center;-webkit-box-align:center;align-items:center;color:#5f6368;fill:#5f6368;font-size:11px;font-weight:400}.nsm7Bb-HzV7m-LgbsSe.jVeSEe.i5vt6e-to915-Ia7Qfc .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{color:#c4c7c5;fill:#c4c7c5}.nsm7Bb-HzV7m-LgbsSe.jVeSEe.MFS4be-Ia7Qfc .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{color:#e8eaed;fill:#e8eaed}@media screen and (prefers-contrast:more){.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff,.nsm7Bb-HzV7m-LgbsSe.jVeSEe.MFS4be-Ia7Qfc .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{color:#000;fill:#000}}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff .Bz112c{height:18px;margin:-3px -3px -3px 2px;min-width:18px;width:18px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-top-left-radius:0;border-bottom-left-radius:0;border-top-right-radius:3px;border-bottom-right-radius:3px;margin-left:12px;margin-right:-10px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:18px}.L5Fo6c-sM5MNb{border:0;display:block;left:0;position:relative;top:0}.L5Fo6c-bF1uUb{border-radius:4px;bottom:0;cursor:pointer;left:0;position:absolute;right:0;top:0}.L5Fo6c-bF1uUb:focus{border:none;outline:none}sentinel{}</style><link id="load-css-button.min.css" rel="stylesheet" type="text/css" href="./index_files/button.min.css"></head>
+</head>
 <body>
 
 <!-- ═══════════════════════════════════════════════════
@@ -868,9 +868,9 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
   <nav class="land-nav">
     <div class="logo">Equity<span>AI</span></div>
     <div class="nav-btns">
-      <a href="file:///C:/enterprise.html" style="font-size: 13px; color: rgba(255, 255, 255, 0.6); text-decoration: none; font-weight: 500; margin-right: 8px;" onmouseover="this.style.color=&#39;#c9a84c&#39;" onmouseout="this.style.color=&#39;rgba(255,255,255,0.6)&#39;">For Institutions</a>
-      <button class="btn btn-ghost" onclick="showPage(&#39;auth&#39;,&#39;login&#39;)" style="border:1.5px solid rgba(255,255,255,0.5);font-weight:600">Sign In</button>
-      <button class="btn btn-gold" onclick="showPage(&#39;auth&#39;,&#39;register&#39;)">Get Started Free</button>
+      <a href="/enterprise.html" style="font-size:13px;color:rgba(255,255,255,0.6);text-decoration:none;font-weight:500;margin-right:8px" onmouseover="this.style.color='#c9a84c'" onmouseout="this.style.color='rgba(255,255,255,0.6)'">For Institutions</a>
+      <button class="btn btn-ghost" onclick="showPage('auth','login')" style="border:1.5px solid rgba(255,255,255,0.5);font-weight:600">Sign In</button>
+      <button class="btn btn-gold" onclick="showPage('auth','register')">Get Started Free</button>
     </div>
   </nav>
 
@@ -879,9 +879,9 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
     <h1>Professional Stock Intelligence<br>for <em>Nigerian &amp; US Markets</em></h1>
     <p>Real-time prices, deep fundamentals, AI-powered analysis and institutional-grade research on 148 NGX + 500 US stocks — all in one platform.</p>
     <div class="hero-ctas">
-      <button class="btn btn-gold" onclick="showPage(&#39;auth&#39;,&#39;register&#39;)" style="font-size:15px;padding:13px 28px">Start Free — No Card Needed</button>
-      <button class="btn btn-ghost" onclick="document.getElementById(&#39;pricing-section&#39;).scrollIntoView({behavior:&#39;smooth&#39;})" style="font-size:15px;padding:13px 28px">See Pricing ↓</button>
-      <button class="btn btn-ghost" onclick="showPage(&#39;auth&#39;,&#39;login&#39;)" style="font-size:15px;padding:13px 28px;border:2px solid #1a1a2e;background:#fff;color:#1a1a2e;font-weight:700">Returning User? Sign In →</button>
+      <button class="btn btn-gold" onclick="showPage('auth','register')" style="font-size:15px;padding:13px 28px">Start Free — No Card Needed</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('pricing-section').scrollIntoView({behavior:'smooth'})" style="font-size:15px;padding:13px 28px">See Pricing ↓</button>
+      <button class="btn btn-ghost" onclick="showPage('auth','login')" style="font-size:15px;padding:13px 28px;border:2px solid #1a1a2e;background:#fff;color:#1a1a2e;font-weight:700">Returning User? Sign In →</button>
     </div>
     <div class="hero-stats">
       <div class="stat-item"><div class="stat-num">646</div><div class="stat-lbl">NGX + US Stocks</div></div>
@@ -897,8 +897,15 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
       <div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#1a56db;margin-bottom:8px">📹 Platform Walkthrough</div>
       <h2 style="font-family:Syne,sans-serif;font-size:clamp(18px,2.5vw,26px);font-weight:800;color:#0f172a;margin:0 0 8px">See how EquityAI works</h2>
       <p style="color:#64748b;font-size:14px;margin:0 0 24px">A 10-minute walkthrough — signals, AI analysis, valuation reports and more.</p>
-      <div style="position:relative;padding-bottom:56.25%;height:0;border-radius:12px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.10)">
-        <iframe src="./index_files/3n8TJWqXCyM.html" title="EquityAI Platform Walkthrough" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen="" style="position:absolute;top:0;left:0;width:100%;height:100%"></iframe>
+      <div style="position:relative;padding-bottom:56.25%;height:0;border-radius:12px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.10);background:linear-gradient(135deg,#0f172a,#1e3a5f)">
+        <div style="position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px">
+          <div style="width:72px;height:72px;background:rgba(255,255,255,.15);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;border:2px solid rgba(255,255,255,.3)">
+            <div style="width:0;height:0;border-style:solid;border-width:14px 0 14px 28px;border-color:transparent transparent transparent #ffffff;margin-left:6px"></div>
+          </div>
+          <div style="color:rgba(255,255,255,.9);font-family:Syne,sans-serif;font-size:16px;font-weight:700">Walkthrough video coming soon</div>
+          <div style="color:rgba(255,255,255,.5);font-size:13px;max-width:340px;line-height:1.6">In the meantime, sign up and explore the platform — it takes less than 2 minutes to get started.</div>
+          <a href="#" onclick="document.getElementById('btn-signup')&&document.getElementById('btn-signup').click();return false;" style="background:#1a56db;color:#fff;padding:10px 24px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;margin-top:4px">Get Started Free →</a>
+        </div>
       </div>
     </div>
   </section>
@@ -936,7 +943,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
           <li class="no">Screener &amp; compare tools</li>
           <li class="no">US stock access</li>
         </ul>
-        <button class="price-btn price-btn-free" onclick="showPage(&#39;auth&#39;,&#39;register&#39;)">Sign Up Free</button>
+        <button class="price-btn price-btn-free" onclick="showPage('auth','register')">Sign Up Free</button>
       </div>
 
       <!-- PRO — NGX FOCUS -->
@@ -950,7 +957,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
         <div style="font-size:11px;color:#059669;font-weight:600;margin-bottom:4px">🔄 Auto-renews monthly · Cancel anytime</div>
         <div class="price-desc">Full NGX access for serious Nigerian investors and analysts.</div>
         <ul class="price-features">
-          <li>🇳🇬 All 148 NGX stocks</li>
+          <li>&#x1F1F3;&#x1F1EC; All 148 NGX stocks</li>
           <li>Full fundamentals dashboard</li>
           <li>AI analysis (4 modes per stock)</li>
           <li>AI investment signals &amp; valuation reports</li>
@@ -961,8 +968,8 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
           <li class="no">US stock access</li>
           <li class="no">Admin panel &amp; team access</li>
         </ul>
-        <button class="price-btn price-btn-pro" onclick="startSubscription(&#39;pro&#39;)">Subscribe — ₦10,000/mo</button>
-        <button class="price-btn price-btn-pro" style="margin-top:8px;background:#fff;color:#1a56db;border:2px solid #1a56db" onclick="startSubscriptionUSD(&#39;pro&#39;)">Subscribe — $6/mo (USD)</button>
+        <button class="price-btn price-btn-pro" onclick="startSubscription('pro')">Subscribe — ₦10,000/mo</button>
+        <button class="price-btn price-btn-pro" style="margin-top:8px;background:#fff;color:#1a56db;border:2px solid #1a56db" onclick="startSubscriptionUSD('pro')">Subscribe — $6/mo (USD)</button>
       </div>
 
       <!-- PLATINUM — NGX + US -->
@@ -976,16 +983,16 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
         <div class="price-desc">Full NGX + 500 US stocks for global investors.</div>
         <ul class="price-features">
           <li>Everything in Professional</li>
-          <li>🇳🇬 All 148 NGX stocks</li>
-          <li>🇺🇸 All 500 US stocks (NYSE/NASDAQ)</li>
+          <li>&#x1F1F3;&#x1F1EC; All 148 NGX stocks</li>
+          <li>&#x1F1FA;&#x1F1F8; All 500 US stocks (NYSE/NASDAQ)</li>
           <li>Apple, Microsoft, NVIDIA, JPMorgan &amp; more</li>
           <li>AI signals &amp; valuation for all US stocks</li>
           <li>Cross-market portfolio analysis</li>
           <li>US + NGX price &amp; fundamentals</li>
           <li class="no">Team member logins</li>
         </ul>
-        <button class="price-btn price-btn-pro" style="background:linear-gradient(135deg,#7c3aed,#1a56db)" onclick="startSubscription(&#39;platinum&#39;)">Subscribe — ₦20,000/mo</button>
-        <button class="price-btn price-btn-pro" style="margin-top:8px;background:#fff;color:#7c3aed;border:2px solid #7c3aed" onclick="startSubscriptionUSD(&#39;platinum&#39;)">Subscribe — $12/mo (USD)</button>
+        <button class="price-btn price-btn-pro" style="background:linear-gradient(135deg,#7c3aed,#1a56db)" onclick="startSubscription('platinum')">Subscribe — ₦20,000/mo</button>
+        <button class="price-btn price-btn-pro" style="margin-top:8px;background:#fff;color:#7c3aed;border:2px solid #7c3aed" onclick="startSubscriptionUSD('platinum')">Subscribe — $12/mo (USD)</button>
       </div>
 
       <!-- ENTERPRISE -->
@@ -1007,15 +1014,15 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
           <li>Custom onboarding session</li>
           <li>API access (on request)</li>
         </ul>
-        <button class="price-btn price-btn-ent" onclick="startSubscription(&#39;enterprise&#39;)">Subscribe — ₦200,000/mo</button>
-        <button class="price-btn price-btn-ent" style="margin-top:8px;background:#fff;color:#0f172a;border:2px solid #0f172a" onclick="startSubscriptionUSD(&#39;enterprise&#39;)">Subscribe — $120/mo (USD)</button>
+        <button class="price-btn price-btn-ent" onclick="startSubscription('enterprise')">Subscribe — ₦200,000/mo</button>
+        <button class="price-btn price-btn-ent" style="margin-top:8px;background:#fff;color:#0f172a;border:2px solid #0f172a" onclick="startSubscriptionUSD('enterprise')">Subscribe — $120/mo (USD)</button>
       </div>
     </div>
   </section>
 
   <footer class="land-footer">
     <p>© 2026 EquityAI. Not financial advice. Prices sourced from EODHD (NGX) and Yahoo Finance (US). Fundamentals from company filings.</p>
-    <p style="margin-top:6px">Payments secured by <strong style="color:var(--primary)">Paystack</strong> · Nigerian cards, bank transfer &amp; USSD accepted.</p>
+    <p style="margin-top:6px">Payments secured by <strong style="color:var(--primary)">Paystack</strong> · Nigerian cards, bank transfer & USSD accepted.</p>
   </footer>
 </div><!-- /landing -->
 
@@ -1027,10 +1034,10 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
   <!-- Light blue top banner — left to right gradient -->
   <div style="width:100%;background:linear-gradient(90deg,#dbeafe 0%,#eff6ff 50%,#e0f2fe 100%);padding:18px 32px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #bfdbfe;flex-shrink:0">
     <div style="display:flex;align-items:center;gap:10px">
-      <span style="font-family:&#39;Syne&#39;,sans-serif;font-size:20px;font-weight:800;color:#0f172a">Equity<span style="color:#F59E0B">AI</span></span>
+      <span style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#0f172a">Equity<span style="color:#F59E0B">AI</span></span>
       <span style="font-size:11px;color:#3b82f6;background:#dbeafe;padding:2px 10px;border-radius:20px;font-weight:600;border:1px solid #bfdbfe">Nigerian Stock Intelligence</span>
     </div>
-    <button onclick="showPage(&#39;landing&#39;)" style="font-size:12px;color:#3b82f6;background:transparent;border:1px solid #bfdbfe;padding:6px 14px;border-radius:8px;cursor:pointer;font-family:DM Sans,sans-serif;font-weight:600">← Back to Home</button>
+    <button onclick="showPage('landing')" style="font-size:12px;color:#3b82f6;background:transparent;border:1px solid #bfdbfe;padding:6px 14px;border-radius:8px;cursor:pointer;font-family:DM Sans,sans-serif;font-weight:600">← Back to Home</button>
   </div>
 
   <!-- Page body — white bg, card centred -->
@@ -1060,9 +1067,9 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
         </div>
         <button class="btn btn-gold" style="width:100%;padding:12px;font-size:14px;justify-content:center;margin-top:4px" onclick="doLogin()">Sign In</button>
         <div style="text-align:center;margin-top:10px">
-          <a onclick="toggleAuth(&#39;reset&#39;)" style="font-size:12px;color:#1a56db;cursor:pointer;text-decoration:none">Forgot your password?</a>
+          <a onclick="toggleAuth('reset')" style="font-size:12px;color:#1a56db;cursor:pointer;text-decoration:none">Forgot your password?</a>
         </div>
-        <div class="auth-link">Don't have an account? <a onclick="toggleAuth(&#39;register&#39;)">Create one free →</a></div>
+        <div class="auth-link">Don't have an account? <a onclick="toggleAuth('register')">Create one free →</a></div>
       </div>
 
       <!-- REGISTER FORM -->
@@ -1091,7 +1098,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
           </select>
         </div>
         <button class="btn btn-gold" style="width:100%;padding:13px;font-size:14px;justify-content:center;margin-top:6px" onclick="doRegister()">Create Free Account</button>
-        <div class="auth-link">Already have an account? <a onclick="toggleAuth(&#39;login&#39;)">Sign in</a></div>
+        <div class="auth-link">Already have an account? <a onclick="toggleAuth('login')">Sign in</a></div>
       </div>
 
       <!-- PASSWORD RESET FORM -->
@@ -1105,7 +1112,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
           <input type="email" class="form-input" id="reset-email" placeholder="your@email.com">
         </div>
         <button class="btn btn-gold" style="width:100%;padding:12px;font-size:14px;justify-content:center;margin-top:4px" onclick="doPasswordReset()">Send Reset Link</button>
-        <div class="auth-link"><a onclick="toggleAuth(&#39;login&#39;)" style="cursor:pointer">← Back to Sign In</a></div>
+        <div class="auth-link"><a onclick="toggleAuth('login')" style="cursor:pointer">← Back to Sign In</a></div>
       </div>
 
       <!-- Trust signals -->
@@ -1127,11 +1134,11 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
     <div class="dash-logo">Equity<span>AI</span></div>
     <div class="dash-user">
       <div class="user-badge">
-        <span class="user-name" id="hdr-name" onclick="switchDashTab(&#39;myspace&#39;,document.getElementById(&#39;tab-myspace&#39;))" style="cursor:pointer" title="My Dashboard">—</span>
+        <span class="user-name" id="hdr-name" onclick="switchDashTab('myspace',document.getElementById('tab-myspace'))" style="cursor:pointer" title="My Dashboard">—</span>
         <span class="tier-pill" id="hdr-tier">free</span>
       </div>
       <button class="btn btn-ghost btn-sm" id="upgrade-btn" onclick="openUpgradeModal()" style="display:none">⬆ Upgrade</button>
-      <button class="btn btn-ghost btn-sm" id="admin-btn" onclick="showPage(&#39;admin&#39;)" style="display:none">⚙ Admin</button>
+      <button class="btn btn-ghost btn-sm" id="admin-btn" onclick="showPage('admin')" style="display:none">⚙ Admin</button>
       <button class="btn btn-ghost dark btn-sm" onclick="doLogout()" style="border-color:var(--primary);color:var(--primary)">Sign Out</button>
     </div>
   </header>
@@ -1140,7 +1147,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
     <div class="dash-top">
       <div class="dash-title">
         Market Overview
-        <small id="dash-subtitle">NGX · <span id="dash-price-date">19 Jul 2026</span> · Prices: EODHD · Fundamentals: Yahoo Finance</small>
+        <small id="dash-subtitle">NGX · <span id="dash-price-date">loading...</span> · Prices: EODHD · Fundamentals: Yahoo Finance</small>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <span id="plan-banner" style="font-size:12px;color:var(--text3);align-self:center"></span>
@@ -1159,13 +1166,13 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
 
     <!-- MAIN CONTENT TABS -->
     <div class="dash-tabs">
-      <button class="dash-tab" onclick="switchDashTab(&#39;myspace&#39;,this)" id="tab-myspace" style="background:linear-gradient(135deg,#059669,#0891b2);color:#fff;border:none">👤 My Dashboard</button>
-      <button class="dash-tab active" id="tab-watchlist" onclick="switchDashTab(&#39;watchlist&#39;,this)">📊 Watchlist</button>
-      <button class="dash-tab" onclick="switchDashTab(&#39;screener&#39;,this)">🔍 Screener</button>
-      <button class="dash-tab" onclick="switchDashTab(&#39;compare&#39;,this)">⚖️ Compare</button>
-      <button class="dash-tab" onclick="switchDashTab(&#39;myportfolio&#39;,this)" id="tab-myportfolio" style="background:linear-gradient(135deg,#059669,#0e7490);color:#fff;border:none">📈 My Portfolio</button>
-      <button class="dash-tab" onclick="switchDashTab(&#39;greatcompany&#39;,this)" id="tab-greatcompany" style="background:linear-gradient(135deg,#d97706,#b45309);color:#fff;border:none">⭐ Great Company</button>
-      <button class="dash-tab" onclick="switchDashTab(&#39;portfolio&#39;,this)" style="background:linear-gradient(135deg,var(--primary),#7c3aed);color:#fff;border:none">💼 AI Portfolio</button>
+      <button class="dash-tab" onclick="switchDashTab('myspace',this)" id="tab-myspace" style="background:linear-gradient(135deg,#059669,#0891b2);color:#fff;border:none">👤 My Dashboard</button>
+      <button class="dash-tab active" id="tab-watchlist" onclick="switchDashTab('watchlist',this)">📊 Watchlist</button>
+      <button class="dash-tab" onclick="switchDashTab('screener',this)">🔍 Screener</button>
+      <button class="dash-tab" onclick="switchDashTab('compare',this)">⚖️ Compare</button>
+      <button class="dash-tab" onclick="switchDashTab('myportfolio',this)" id="tab-myportfolio" style="background:linear-gradient(135deg,#059669,#0e7490);color:#fff;border:none">📈 My Portfolio</button>
+      <button class="dash-tab" onclick="switchDashTab('greatcompany',this)" id="tab-greatcompany" style="background:linear-gradient(135deg,#d97706,#b45309);color:#fff;border:none">⭐ Great Company</button>
+      <button class="dash-tab" onclick="switchDashTab('portfolio',this)" style="background:linear-gradient(135deg,var(--primary),#7c3aed);color:#fff;border:none">💼 AI Portfolio</button>
     </div>
 
     <!-- WATCHLIST -->
@@ -1186,7 +1193,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
         <input type="text" class="search-input" id="srch" placeholder="🔎  Search ticker or company..." oninput="filterStocks()">
         <select class="filter-select" id="secF" onchange="filterStocks()">
           <option value="">All sectors</option>
-          <option>Banking</option><option>Telecoms</option><option>Oil &amp; Gas</option>
+          <option>Banking</option><option>Telecoms</option><option>Oil & Gas</option>
           <option>Industrial</option><option>Consumer</option><option>Power</option>
           <option>Agriculture</option><option>Insurance</option><option>Hospitality</option><option>Other</option>
         </select>
@@ -1196,9 +1203,9 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
         <span class="show-cnt" id="show-cnt">148 NGX + 500 US</span>
       </div>
       <div id="mkt-filter-bar" style="display:flex;gap:6px;margin-bottom:10px;background:var(--bg3);padding:4px;border-radius:10px;border:1px solid var(--border);width:fit-content">
-        <button id="mf-ngx" onclick="setMktFilter(&#39;NGX&#39;,this)" style="padding:5px 14px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:var(--primary);color:#fff">🇳🇬 NGX</button>
-        <button id="mf-us" onclick="setMktFilter(&#39;US&#39;,this)" style="padding:5px 14px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:var(--text3)">🇺🇸 US</button>
-        <button id="mf-all" onclick="setMktFilter(&#39;ALL&#39;,this)" style="padding:5px 14px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:var(--text3)">🌍 All</button>
+        <button id="mf-ngx" onclick="setMktFilter('NGX',this)" style="padding:5px 14px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:var(--primary);color:#fff">&#x1F1F3;&#x1F1EC; NGX</button>
+        <button id="mf-us"  onclick="setMktFilter('US',this)"  style="padding:5px 14px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:var(--text3)">&#x1F1FA;&#x1F1F8; US</button>
+        <button id="mf-all" onclick="setMktFilter('ALL',this)" style="padding:5px 14px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:var(--text3)">&#x1F30D; All</button>
       </div>
       <div class="stock-grid" id="stock-grid"></div>
       <div class="detail-panel" id="detail-panel"></div>
@@ -1209,7 +1216,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
       <div class="filter-bar" style="margin-bottom:14px">
         <select class="filter-select" id="scr-sec" onchange="runScreener()">
           <option value="">All sectors</option>
-          <option>Banking</option><option>Telecoms</option><option>Oil &amp; Gas</option>
+          <option>Banking</option><option>Telecoms</option><option>Oil & Gas</option>
           <option>Industrial</option><option>Consumer</option><option>Power</option>
           <option>Agriculture</option><option>Insurance</option><option>Hospitality</option><option>Other</option>
         </select>
@@ -1272,7 +1279,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
             <select class="port-config-select" id="port-objective">
               <option value="growth">Capital Growth</option>
               <option value="income">Dividend Income</option>
-              <option value="balanced">Balanced Growth &amp; Income</option>
+              <option value="balanced">Balanced Growth & Income</option>
               <option value="value">Deep Value</option>
               <option value="momentum">Momentum</option>
             </select>
@@ -1304,13 +1311,16 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
               <option value="tech">Overweight Technology</option>
               <option value="consumer">Overweight Consumer</option>
               <option value="industrial">Overweight Industrial</option>
-              <option value="oil">Overweight Oil &amp; Gas</option>
+              <option value="oil">Overweight Oil & Gas</option>
               <option value="healthcare">Overweight Healthcare</option>
             </select>
           </div>
           <div class="port-config-item">
             <label id="port-amount-label">Investment Amount (₦)</label>
-            <input type="text" class="port-config-select" id="port-amount" placeholder="e.g. 5,000,000" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:12px;font-weight:600;border-radius:8px;padding:8px 12px;width:100%;outline:none" oninput="this.value=this.value.replace(/[^0-9,]/g,&#39;&#39;)">
+            <input type="text" class="port-config-select" id="port-amount"
+              placeholder="e.g. 5,000,000"
+              style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:12px;font-weight:600;border-radius:8px;padding:8px 12px;width:100%;outline:none"
+              oninput="this.value=this.value.replace(/[^0-9,]/g,'')">
           </div>
           <div class="port-config-item">
             <label>Dividend Requirement</label>
@@ -1334,7 +1344,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
       <div id="port-output">
         <div class="port-empty">
           <div style="font-size:48px;margin-bottom:16px">💼</div>
-          <div style="font-family:&#39;Syne&#39;,sans-serif;font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px">Configure Your Portfolio Above</div>
+          <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px">Configure Your Portfolio Above</div>
           <div style="font-size:13px;color:var(--text3);max-width:400px;margin:0 auto;line-height:1.7">
             Choose your market (NGX, US, or Global), set your objective and risk tolerance. The AI applies JPMorgan-style factor analysis — value, momentum, quality and yield — to build an optimal portfolio from 148 NGX or 500 US stocks across NYSE, NASDAQ and the Nigerian Exchange.
           </div>
@@ -1451,23 +1461,23 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
     <aside class="admin-sidebar">
       <div class="admin-logo">Equity<span>AI</span><small>Command Centre</small></div>
       <div class="adm-nav-section">Analytics</div>
-      <div class="admin-nav-item active" onclick="adminNav(&#39;overview&#39;,this)">📊 Dashboard</div>
-      <div class="admin-nav-item" onclick="adminNav(&#39;revenue&#39;,this)">💰 Revenue &amp; Subs</div>
-      <div class="admin-nav-item" onclick="adminNav(&#39;usage&#39;,this)">📈 Usage Analytics</div>
-      <div class="admin-nav-item" onclick="adminNav(&#39;signals&#39;,this)">🤖 Signal Analytics</div>
+      <div class="admin-nav-item active" onclick="adminNav('overview',this)">📊 Dashboard</div>
+      <div class="admin-nav-item" onclick="adminNav('revenue',this)">💰 Revenue & Subs</div>
+      <div class="admin-nav-item" onclick="adminNav('usage',this)">📈 Usage Analytics</div>
+      <div class="admin-nav-item" onclick="adminNav('signals',this)">🤖 Signal Analytics</div>
       <div class="adm-nav-section">Management</div>
-      <div class="admin-nav-item" onclick="adminNav(&#39;users&#39;,this)">👥 All Users</div>
-      <div class="admin-nav-item" onclick="adminNav(&#39;members&#39;,this)">👥 Team Members</div>
-      <div class="admin-nav-item" onclick="adminNav(&#39;api-keys&#39;,this)">🔑 API Keys &amp; Docs</div>
-      <div class="admin-nav-item" onclick="adminNav(&#39;controls&#39;,this)">⚙️ Manual Controls</div>
-      <div class="admin-nav-item" onclick="adminNav(&#39;signal-mgmt&#39;,this)">📡 Signal Management</div>
-      <div class="admin-nav-item" onclick="adminNav(&#39;fundamentals&#39;,this)">📂 Fundamentals Pipeline</div>
+      <div class="admin-nav-item" onclick="adminNav('users',this)">👥 All Users</div>
+      <div class="admin-nav-item" onclick="adminNav('members',this)">👥 Team Members</div>
+      <div class="admin-nav-item" onclick="adminNav('api-keys',this)">🔑 API Keys & Docs</div>
+      <div class="admin-nav-item" onclick="adminNav('controls',this)">⚙️ Manual Controls</div>
+      <div class="admin-nav-item" onclick="adminNav('signal-mgmt',this)">📡 Signal Management</div>
+      <div class="admin-nav-item" onclick="adminNav('fundamentals',this)">📂 Fundamentals Pipeline</div>
       <div class="adm-nav-section">Reports</div>
-      <div class="admin-nav-item" onclick="adminNav(&#39;reports&#39;,this)">📋 Reports</div>
-      <div class="admin-nav-item" onclick="adminNav(&#39;logs&#39;,this)">🗂️ Activity Logs</div>
+      <div class="admin-nav-item" onclick="adminNav('reports',this)">📋 Reports</div>
+      <div class="admin-nav-item" onclick="adminNav('logs',this)">🗂️ Activity Logs</div>
       <div style="padding:16px 20px;margin-top:auto;border-top:1px solid var(--border)">
         <div style="font-size:10px;color:var(--text3);margin-bottom:10px;font-weight:600">MASTER ADMIN</div>
-        <button class="btn btn-ghost btn-sm" onclick="showPage(&#39;dashboard&#39;)" style="width:100%;justify-content:center;margin-bottom:6px">← Dashboard</button>
+        <button class="btn btn-ghost btn-sm" onclick="showPage('dashboard')" style="width:100%;justify-content:center;margin-bottom:6px">← Dashboard</button>
         <button class="btn btn-danger btn-sm" onclick="doLogout()" style="width:100%;justify-content:center">Sign Out</button>
       </div>
     </aside>
@@ -1481,7 +1491,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-ghost btn-sm" onclick="adminRefreshAll()">⟳ Refresh</button>
-          <button class="btn btn-ghost btn-sm" onclick="showPage(&#39;dashboard&#39;)">← Dashboard</button>
+          <button class="btn btn-ghost btn-sm" onclick="showPage('dashboard')">← Dashboard</button>
         </div>
       </div>
 
@@ -1504,7 +1514,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
             <div class="adm-card-body" id="adm-signal-status-box"></div>
           </div>
           <div class="adm-card">
-            <div class="adm-card-hdr"><div class="adm-card-title">🕐 Recent Activity</div><button class="adm-btn-xs" onclick="adminNav(&#39;logs&#39;,null)">All Logs →</button></div>
+            <div class="adm-card-hdr"><div class="adm-card-title">🕐 Recent Activity</div><button class="adm-btn-xs" onclick="adminNav('logs',null)">All Logs →</button></div>
             <div class="adm-card-body" id="adm-recent-activity"></div>
           </div>
         </div>
@@ -1530,7 +1540,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
               <select id="subs-plan-filter" onchange="renderSubscriptions()" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px">
                 <option value="">All plans</option><option value="free">Free</option><option value="pro">Pro</option><option value="enterprise">Enterprise</option>
               </select>
-              <button class="adm-btn-xs" onclick="adminExportCSV(&#39;subscriptions&#39;)">⬇ CSV</button>
+              <button class="adm-btn-xs" onclick="adminExportCSV('subscriptions')">⬇ CSV</button>
             </div>
           </div>
           <div class="adm-card-body" style="overflow-x:auto">
@@ -1580,7 +1590,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn btn-gold btn-sm" onclick="adminRunSignals()">▶ Run All 135</button>
               <button class="btn btn-ghost btn-sm" onclick="adminClearSignals()">🗑 Clear Cache</button>
-              <button class="adm-btn-xs" onclick="adminExportCSV(&#39;signals&#39;)">⬇ CSV</button>
+              <button class="adm-btn-xs" onclick="adminExportCSV('signals')">⬇ CSV</button>
             </div>
           </div>
           <div class="adm-card-body">
@@ -1609,7 +1619,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
             <select id="users-plan-filter" onchange="renderAllUsers()" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:12px;outline:none">
               <option value="">All plans</option><option value="free">Free</option><option value="pro">Pro</option><option value="enterprise">Enterprise</option>
             </select>
-            <button class="adm-btn-xs" onclick="adminExportCSV(&#39;users&#39;)">⬇ CSV</button>
+            <button class="adm-btn-xs" onclick="adminExportCSV('users')">⬇ CSV</button>
           </div>
         </div>
         <div class="adm-card">
@@ -1650,22 +1660,22 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
                 <div class="adm-control-lbl">Clear Signal Cache</div>
                 <div class="adm-control-desc">Remove cached signals (auto will re-run)</div>
               </div>
-              <div class="adm-control" onclick="adminNav(&#39;users&#39;,null)">
+              <div class="adm-control" onclick="adminNav('users',null)">
                 <div class="adm-control-icon">👥</div>
                 <div class="adm-control-lbl">Manage Users</div>
                 <div class="adm-control-desc">View and edit all registered accounts</div>
               </div>
-              <div class="adm-control" onclick="adminExportCSV(&#39;all&#39;)">
+              <div class="adm-control" onclick="adminExportCSV('all')">
                 <div class="adm-control-icon">⬇️</div>
                 <div class="adm-control-lbl">Export All Data</div>
-                <div class="adm-control-desc">Download users, signals &amp; revenue CSV</div>
+                <div class="adm-control-desc">Download users, signals & revenue CSV</div>
               </div>
               <div class="adm-control" onclick="adminResetAllSessions()">
                 <div class="adm-control-icon">🔒</div>
                 <div class="adm-control-lbl">Reset All Sessions</div>
                 <div class="adm-control-desc">Force all users to re-login (security)</div>
               </div>
-              <div class="adm-control" onclick="adminNav(&#39;reports&#39;,null)">
+              <div class="adm-control" onclick="adminNav('reports',null)">
                 <div class="adm-control-icon">📋</div>
                 <div class="adm-control-lbl">Generate Report</div>
                 <div class="adm-control-desc">Full analytics report PDF/text</div>
@@ -1772,25 +1782,31 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
                 <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">▶ Run Report for Selected Stocks</div>
                 <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Type ticker(s) below — separate multiple with commas. Example: <strong>MTNN, GUINNESS, ZENITHBANK</strong></div>
                 <div style="position:relative;margin-bottom:8px">
-                  <input type="text" id="ngx-rpt-ticker" placeholder="e.g. MTNN, GUINNESS, ZENITHBANK, DANGCEM" class="form-input" style="text-transform:uppercase;width:100%;padding-right:130px" oninput="adminNGXRptSuggest(this.value)" onkeydown="if(event.key===&#39;Enter&#39;) adminRunNGXReportMulti()">
-                  <button class="btn btn-gold" onclick="adminRunNGXReportMulti()" style="position:absolute;right:4px;top:4px;bottom:4px;padding:0 16px;font-size:12px;white-space:nowrap">
+                  <input type="text" id="ngx-rpt-ticker"
+                    placeholder="e.g. MTNN, GUINNESS, ZENITHBANK, DANGCEM"
+                    class="form-input"
+                    style="text-transform:uppercase;width:100%;padding-right:130px"
+                    oninput="adminNGXRptSuggest(this.value)"
+                    onkeydown="if(event.key==='Enter') adminRunNGXReportMulti()">
+                  <button class="btn btn-gold" onclick="adminRunNGXReportMulti()"
+                    style="position:absolute;right:4px;top:4px;bottom:4px;padding:0 16px;font-size:12px;white-space:nowrap">
                     ▶ Generate Reports
                   </button>
                 </div>
                 <!-- Quick-pick common stocks -->
                 <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Quick add:</div>
                 <div style="display:flex;gap:6px;flex-wrap:wrap">
-                  <button class="btn btn-ghost" onclick="adminNGXRptAdd(&#39;MTNN&#39;)" style="font-size:11px;padding:3px 10px;height:auto">MTNN</button>
-                  <button class="btn btn-ghost" onclick="adminNGXRptAdd(&#39;ZENITHBANK&#39;)" style="font-size:11px;padding:3px 10px;height:auto">ZENITHBANK</button>
-                  <button class="btn btn-ghost" onclick="adminNGXRptAdd(&#39;GTCO&#39;)" style="font-size:11px;padding:3px 10px;height:auto">GTCO</button>
-                  <button class="btn btn-ghost" onclick="adminNGXRptAdd(&#39;DANGCEM&#39;)" style="font-size:11px;padding:3px 10px;height:auto">DANGCEM</button>
-                  <button class="btn btn-ghost" onclick="adminNGXRptAdd(&#39;ACCESSCORP&#39;)" style="font-size:11px;padding:3px 10px;height:auto">ACCESSCORP</button>
-                  <button class="btn btn-ghost" onclick="adminNGXRptAdd(&#39;AIRTELAFRI&#39;)" style="font-size:11px;padding:3px 10px;height:auto">AIRTELAFRI</button>
-                  <button class="btn btn-ghost" onclick="adminNGXRptAdd(&#39;SEPLAT&#39;)" style="font-size:11px;padding:3px 10px;height:auto">SEPLAT</button>
-                  <button class="btn btn-ghost" onclick="adminNGXRptAdd(&#39;GUINNESS&#39;)" style="font-size:11px;padding:3px 10px;height:auto">GUINNESS</button>
-                  <button class="btn btn-ghost" onclick="adminNGXRptAdd(&#39;BUAFOODS&#39;)" style="font-size:11px;padding:3px 10px;height:auto">BUAFOODS</button>
-                  <button class="btn btn-ghost" onclick="adminNGXRptAdd(&#39;UBA&#39;)" style="font-size:11px;padding:3px 10px;height:auto">UBA</button>
-                  <button class="btn btn-ghost" onclick="document.getElementById(&#39;ngx-rpt-ticker&#39;).value=&#39;&#39;" style="font-size:11px;padding:3px 10px;height:auto;color:var(--red)">✕ Clear</button>
+                  <button class="btn btn-ghost" onclick="adminNGXRptAdd('MTNN')" style="font-size:11px;padding:3px 10px;height:auto">MTNN</button>
+                  <button class="btn btn-ghost" onclick="adminNGXRptAdd('ZENITHBANK')" style="font-size:11px;padding:3px 10px;height:auto">ZENITHBANK</button>
+                  <button class="btn btn-ghost" onclick="adminNGXRptAdd('GTCO')" style="font-size:11px;padding:3px 10px;height:auto">GTCO</button>
+                  <button class="btn btn-ghost" onclick="adminNGXRptAdd('DANGCEM')" style="font-size:11px;padding:3px 10px;height:auto">DANGCEM</button>
+                  <button class="btn btn-ghost" onclick="adminNGXRptAdd('ACCESSCORP')" style="font-size:11px;padding:3px 10px;height:auto">ACCESSCORP</button>
+                  <button class="btn btn-ghost" onclick="adminNGXRptAdd('AIRTELAFRI')" style="font-size:11px;padding:3px 10px;height:auto">AIRTELAFRI</button>
+                  <button class="btn btn-ghost" onclick="adminNGXRptAdd('SEPLAT')" style="font-size:11px;padding:3px 10px;height:auto">SEPLAT</button>
+                  <button class="btn btn-ghost" onclick="adminNGXRptAdd('GUINNESS')" style="font-size:11px;padding:3px 10px;height:auto">GUINNESS</button>
+                  <button class="btn btn-ghost" onclick="adminNGXRptAdd('BUAFOODS')" style="font-size:11px;padding:3px 10px;height:auto">BUAFOODS</button>
+                  <button class="btn btn-ghost" onclick="adminNGXRptAdd('UBA')" style="font-size:11px;padding:3px 10px;height:auto">UBA</button>
+                  <button class="btn btn-ghost" onclick="document.getElementById('ngx-rpt-ticker').value=''" style="font-size:11px;padding:3px 10px;height:auto;color:var(--red)">✕ Clear</button>
                 </div>
               </div>
 
@@ -1860,27 +1876,33 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
                 <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">▶ Run Report for Selected US Stocks</div>
                 <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Type ticker(s) below — separate multiple with commas. Example: <strong>AAPL, NVDA, MSFT</strong></div>
                 <div style="position:relative;margin-bottom:8px">
-                  <input type="text" id="us-rpt-ticker" placeholder="e.g. AAPL, NVDA, MSFT, GOOGL, JPM" class="form-input" style="text-transform:uppercase;width:100%;padding-right:130px" oninput="adminUSRptSuggest(this.value)" onkeydown="if(event.key===&#39;Enter&#39;) adminRunUSReportMulti()">
-                  <button class="btn btn-gold" onclick="adminRunUSReportMulti()" style="position:absolute;right:4px;top:4px;bottom:4px;padding:0 16px;font-size:12px;white-space:nowrap">
+                  <input type="text" id="us-rpt-ticker"
+                    placeholder="e.g. AAPL, NVDA, MSFT, GOOGL, JPM"
+                    class="form-input"
+                    style="text-transform:uppercase;width:100%;padding-right:130px"
+                    oninput="adminUSRptSuggest(this.value)"
+                    onkeydown="if(event.key==='Enter') adminRunUSReportMulti()">
+                  <button class="btn btn-gold" onclick="adminRunUSReportMulti()"
+                    style="position:absolute;right:4px;top:4px;bottom:4px;padding:0 16px;font-size:12px;white-space:nowrap">
                     ▶ Generate Reports
                   </button>
                 </div>
                 <!-- Quick-pick common US stocks -->
                 <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Quick add:</div>
                 <div style="display:flex;gap:6px;flex-wrap:wrap">
-                  <button class="btn btn-ghost" onclick="adminUSRptAdd(&#39;AAPL&#39;)" style="font-size:11px;padding:3px 10px;height:auto">AAPL</button>
-                  <button class="btn btn-ghost" onclick="adminUSRptAdd(&#39;MSFT&#39;)" style="font-size:11px;padding:3px 10px;height:auto">MSFT</button>
-                  <button class="btn btn-ghost" onclick="adminUSRptAdd(&#39;NVDA&#39;)" style="font-size:11px;padding:3px 10px;height:auto">NVDA</button>
-                  <button class="btn btn-ghost" onclick="adminUSRptAdd(&#39;GOOGL&#39;)" style="font-size:11px;padding:3px 10px;height:auto">GOOGL</button>
-                  <button class="btn btn-ghost" onclick="adminUSRptAdd(&#39;AMZN&#39;)" style="font-size:11px;padding:3px 10px;height:auto">AMZN</button>
-                  <button class="btn btn-ghost" onclick="adminUSRptAdd(&#39;META&#39;)" style="font-size:11px;padding:3px 10px;height:auto">META</button>
-                  <button class="btn btn-ghost" onclick="adminUSRptAdd(&#39;TSLA&#39;)" style="font-size:11px;padding:3px 10px;height:auto">TSLA</button>
-                  <button class="btn btn-ghost" onclick="adminUSRptAdd(&#39;JPM&#39;)" style="font-size:11px;padding:3px 10px;height:auto">JPM</button>
-                  <button class="btn btn-ghost" onclick="adminUSRptAdd(&#39;BRK.B&#39;)" style="font-size:11px;padding:3px 10px;height:auto">BRK.B</button>
-                  <button class="btn btn-ghost" onclick="adminUSRptAdd(&#39;V&#39;)" style="font-size:11px;padding:3px 10px;height:auto">V</button>
-                  <button class="btn btn-ghost" onclick="adminUSRptAdd(&#39;XOM&#39;)" style="font-size:11px;padding:3px 10px;height:auto">XOM</button>
-                  <button class="btn btn-ghost" onclick="adminUSRptAdd(&#39;WMT&#39;)" style="font-size:11px;padding:3px 10px;height:auto">WMT</button>
-                  <button class="btn btn-ghost" onclick="document.getElementById(&#39;us-rpt-ticker&#39;).value=&#39;&#39;" style="font-size:11px;padding:3px 10px;height:auto;color:var(--red)">✕ Clear</button>
+                  <button class="btn btn-ghost" onclick="adminUSRptAdd('AAPL')" style="font-size:11px;padding:3px 10px;height:auto">AAPL</button>
+                  <button class="btn btn-ghost" onclick="adminUSRptAdd('MSFT')" style="font-size:11px;padding:3px 10px;height:auto">MSFT</button>
+                  <button class="btn btn-ghost" onclick="adminUSRptAdd('NVDA')" style="font-size:11px;padding:3px 10px;height:auto">NVDA</button>
+                  <button class="btn btn-ghost" onclick="adminUSRptAdd('GOOGL')" style="font-size:11px;padding:3px 10px;height:auto">GOOGL</button>
+                  <button class="btn btn-ghost" onclick="adminUSRptAdd('AMZN')" style="font-size:11px;padding:3px 10px;height:auto">AMZN</button>
+                  <button class="btn btn-ghost" onclick="adminUSRptAdd('META')" style="font-size:11px;padding:3px 10px;height:auto">META</button>
+                  <button class="btn btn-ghost" onclick="adminUSRptAdd('TSLA')" style="font-size:11px;padding:3px 10px;height:auto">TSLA</button>
+                  <button class="btn btn-ghost" onclick="adminUSRptAdd('JPM')" style="font-size:11px;padding:3px 10px;height:auto">JPM</button>
+                  <button class="btn btn-ghost" onclick="adminUSRptAdd('BRK.B')" style="font-size:11px;padding:3px 10px;height:auto">BRK.B</button>
+                  <button class="btn btn-ghost" onclick="adminUSRptAdd('V')" style="font-size:11px;padding:3px 10px;height:auto">V</button>
+                  <button class="btn btn-ghost" onclick="adminUSRptAdd('XOM')" style="font-size:11px;padding:3px 10px;height:auto">XOM</button>
+                  <button class="btn btn-ghost" onclick="adminUSRptAdd('WMT')" style="font-size:11px;padding:3px 10px;height:auto">WMT</button>
+                  <button class="btn btn-ghost" onclick="document.getElementById('us-rpt-ticker').value=''" style="font-size:11px;padding:3px 10px;height:auto;color:var(--red)">✕ Clear</button>
                 </div>
               </div>
               <div id="us-rpt-result" style="margin-top:10px;font-size:12px;color:var(--text3)"></div>
@@ -1911,7 +1933,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
                 <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:3px">📄 API Documentation</div>
                 <div style="font-size:12px;color:rgba(255,255,255,.75)">Full integration guide — endpoints, code examples, Google Sheets, Excel, Python, Node.js</div>
               </div>
-              <a href="file:///C:/Users/Admin/Downloads/EquityAI-API-Docs.html" target="_blank" style="background:#fff;color:#1e40af;font-size:12px;font-weight:700;padding:8px 16px;border-radius:6px;text-decoration:none;white-space:nowrap;flex-shrink:0">View Full Docs →</a>
+              <a href="EquityAI-API-Docs.html" target="_blank" style="background:#fff;color:#1e40af;font-size:12px;font-weight:700;padding:8px 16px;border-radius:6px;text-decoration:none;white-space:nowrap;flex-shrink:0">View Full Docs →</a>
             </div>
 
             <!-- Available endpoints summary -->
@@ -1981,7 +2003,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
                 &nbsp;&nbsp;&nbsp;&nbsp;https://YOUR-SERVER.railway.app/api/v1/prices/ZENITHBANK
               </div>
               <div style="margin-top:10px;text-align:center">
-                <a href="file:///C:/Users/Admin/Downloads/EquityAI-API-Docs.html" target="_blank" style="font-size:12px;color:var(--primary);font-weight:600;text-decoration:none">📄 View Full Documentation with Python, Node.js, Excel examples →</a>
+                <a href="EquityAI-API-Docs.html" target="_blank" style="font-size:12px;color:var(--primary);font-weight:600;text-decoration:none">📄 View Full Documentation with Python, Node.js, Excel examples →</a>
               </div>
             </div>
           </div>
@@ -2020,7 +2042,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
               <option value="signal">Signal runs</option>
               <option value="member">Member changes</option>
             </select>
-            <button class="adm-btn-xs" onclick="adminExportCSV(&#39;logs&#39;)">⬇ CSV</button>
+            <button class="adm-btn-xs" onclick="adminExportCSV('logs')">⬇ CSV</button>
             <button class="adm-btn-xs danger" onclick="adminClearLogs()">🗑 Clear</button>
           </div>
         </div>
@@ -2045,35 +2067,35 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
 <!-- UPGRADE / PAYMENT MODAL -->
 <div class="modal-overlay" id="modal-upgrade">
   <div class="modal" style="max-width:460px">
-    <button class="modal-close" onclick="closeModal(&#39;modal-upgrade&#39;)">✕</button>
+    <button class="modal-close" onclick="closeModal('modal-upgrade')">&#10005;</button>
     <div class="modal-title" id="modal-upgrade-title">Upgrade to Pro</div>
     <div class="modal-sub" id="modal-upgrade-sub">Unlock all 148 NGX + 500 US stocks, full fundamentals and AI analysis.</div>
     <div style="display:flex;gap:6px;margin-bottom:16px;background:var(--bg3);border-radius:8px;padding:4px">
-      <button id="pay-ngn-tab" onclick="switchPaymentCurrency(&#39;NGN&#39;)" style="flex:1;padding:9px;border-radius:6px;font-size:12px;font-weight:600;border:none;cursor:pointer;background:var(--primary);color:#fff">🇳🇬 Pay in Naira (₦)</button>
-      <button id="pay-usd-tab" onclick="switchPaymentCurrency(&#39;USD&#39;)" style="flex:1;padding:9px;border-radius:6px;font-size:12px;font-weight:600;border:none;cursor:pointer;background:transparent;color:var(--text2)">🌎 Pay in USD ($)</button>
+      <button id="pay-ngn-tab" onclick="switchPaymentCurrency('NGN')" style="flex:1;padding:9px;border-radius:6px;font-size:12px;font-weight:600;border:none;cursor:pointer;background:var(--primary);color:#fff">&#127475;&#127468; Pay in Naira (&#8358;)</button>
+      <button id="pay-usd-tab" onclick="switchPaymentCurrency('USD')" style="flex:1;padding:9px;border-radius:6px;font-size:12px;font-weight:600;border:none;cursor:pointer;background:transparent;color:var(--text2)">&#127758; Pay in USD ($)</button>
     </div>
     <div id="pay-ngn-panel">
       <div class="paystack-summary">
         <div class="ps-row"><span class="ps-row-lbl">Plan</span><span class="ps-row-val" id="ps-plan-name">Professional</span></div>
         <div class="ps-row"><span class="ps-row-lbl">Billing</span><span class="ps-row-val">Monthly · Cancel anytime</span></div>
-        <div class="ps-row ps-total"><span class="ps-row-lbl">Total</span><span class="ps-row-val" id="ps-amount">₦10,000</span></div>
+        <div class="ps-row ps-total"><span class="ps-row-lbl">Total</span><span class="ps-row-val" id="ps-amount">&#8358;10,000</span></div>
       </div>
       <div style="font-size:11px;color:#64748b;background:#f8fafc;border-radius:6px;padding:8px 12px;margin-bottom:12px;line-height:1.6">
         🔄 <strong>Recurring subscription.</strong> Your card will be charged ₦10,000 automatically every month on the same date. You can cancel at any time from your Paystack subscription portal or by contacting us at japhethjev@gmail.com.
       </div>
       <div class="form-group"><label class="form-label">Email for receipt</label><input type="email" class="form-input" id="ps-email" placeholder="your@email.com"></div>
       <button class="btn btn-gold" style="width:100%;padding:13px;font-size:14px;justify-content:center" onclick="initiatePaystack()">Pay with Paystack — ₦10,000/mo</button>
-      <div class="paystack-badge">🔒 Secured by Paystack · Nigerian cards, bank transfer &amp; USSD</div>
+      <div class="paystack-badge">&#128274; Secured by Paystack · Nigerian cards, bank transfer &amp; USSD</div>
     </div>
     <div id="pay-usd-panel" style="display:none">
       <div class="paystack-summary">
         <div class="ps-row"><span class="ps-row-lbl">Plan</span><span class="ps-row-val" id="stripe-plan-name">Professional</span></div>
-        <div class="ps-row"><span class="ps-row-lbl">Billing</span><span class="ps-row-val">Monthly · Cancel anytime</span></div>
+        <div class="ps-row"><span class="ps-row-lbl">Billing</span><span class="ps-row-val">Monthly &#183; Cancel anytime</span></div>
         <div class="ps-row ps-total"><span class="ps-row-lbl">Total</span><span class="ps-row-val" id="stripe-amount">$6/mo</span></div>
       </div>
       <div class="form-group"><label class="form-label">Email for receipt</label><input type="email" class="form-input" id="stripe-email" placeholder="your@email.com"></div>
       <button class="btn btn-gold" style="width:100%;padding:13px;font-size:14px;justify-content:center" onclick="initiateStripe()">Pay with Stripe</button>
-      <div class="paystack-badge">🔒 Secured by Stripe · Visa, Mastercard, Google Pay, Apple Pay</div>
+      <div class="paystack-badge">&#128274; Secured by Stripe &#183; Visa, Mastercard, Google Pay, Apple Pay</div>
     </div>
   </div>
 </div>
@@ -2081,7 +2103,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
 <!-- ADD MEMBER MODAL -->
 <div class="modal-overlay" id="modal-add-member">
   <div class="modal">
-    <button class="modal-close" onclick="closeModal(&#39;modal-add-member&#39;)">✕</button>
+    <button class="modal-close" onclick="closeModal('modal-add-member')">✕</button>
     <div class="modal-title">Add Team Member</div>
     <div class="modal-sub">Create login access for a team member. They will receive their credentials via email.</div>
     <div class="alert alert-error" id="member-err"></div>
@@ -2107,8 +2129,8 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
 <!-- ═══════════════════════════════════════════════════
      PAYSTACK SDK
 ═══════════════════════════════════════════════════ -->
-<script src="./index_files/saved_resource"></script>
-<script src="./index_files/inline.js.download"></script>
+<script src="https://js.stripe.com/v3/"></script>
+<script src="https://js.paystack.co/v1/inline.js"></script>
 
 <script>
 // ══════════════════════════════════════════════════════════
@@ -2140,8 +2162,8 @@ var CONFIG = {
   // ⚠️ STEP 2: Paystack subscription plan codes — get these by visiting once:
   //   https://your-railway-url.up.railway.app/admin/paystack/setup-plans?secret=YOUR_ADMIN_SECRET
   // Copy the plan_code values returned into here. Without these, payments are ONE-TIME only.
-  PAYSTACK_PRO_PLAN_CODE: 'PLN_xxxxxxxxxxxxxxx',
-  PAYSTACK_ENTERPRISE_PLAN_CODE: 'PLN_xxxxxxxxxxxxxxx',
+  PAYSTACK_PRO_PLAN_CODE: 'PLN_aktr3qlkj5opr4f',
+  PAYSTACK_ENTERPRISE_PLAN_CODE: 'PLN_rm8jf38ylhortuj',
   STRIPE_PUBLIC_KEY: 'pk_live_51TV7lSRZB4eSi7AJNON01wQ382kYCtGcKcSyFDAcyh2gQ6cOE9BbfX1LzNNVhuHosPmTpl8RyMwTnOjsH3EgHa3r00BOxItvet',
   // ⚠️ Stripe Price IDs — the ONLY thing you need besides the public key above.
   // Get from: Stripe Dashboard → Products → click a product → copy the Price ID (starts with price_)
@@ -13785,6 +13807,5 @@ function gcDeleteSavedScreen(screenId) {
 // END GREAT COMPANY STRATEGY
 // ══════════════════════════════════════════════════════════════════════
 </script>
-
-
-<iframe frameborder="0" allowtransparency="true" id="ptekR" name="paystack-checkout-background-ptekR" style="z-index: 2147483647; background: rgba(0, 0, 0, 0.75); border: 0px transparent; overflow: hidden; margin: 0px; padding: 0px; -webkit-tap-highlight-color: transparent; position: fixed; left: 0px; top: 0px; width: 100%; height: 100%; transition: opacity 0.3s; visibility: hidden; display: none;" src="./index_files/saved_resource.html"></iframe><iframe frameborder="0" allowtransparency="true" allowpaymentrequest="true" id="Wzcuq" name="paystack-checkout-Wzcuq" src="./index_files/popup.html" style="z-index: 2147483647; background: transparent; border: 0px transparent; overflow: hidden; margin: 0px; padding: 0px; -webkit-tap-highlight-color: transparent; position: fixed; left: 0px; top: 0px; width: 100%; height: 100%; visibility: hidden; display: none;"></iframe><iframe name="__privateStripeMetricsController1050" frameborder="0" allowtransparency="true" scrolling="no" role="presentation" allow="payment *" src="./index_files/m-outer-3437aaddcdf6922d623e172c2d6f9278.html" aria-hidden="true" tabindex="-1" style="border-width: medium !important; border-style: none !important; border-color: currentcolor !important; border-image: none !important; margin: 0px !important; padding: 0px !important; width: 1px !important; min-width: 100% !important; overflow: hidden !important; display: block !important; visibility: hidden !important; position: fixed !important; height: 1px !important; pointer-events: none !important; user-select: none !important;"></iframe></body></html>
+</body>
+</html>
