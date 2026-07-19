@@ -275,6 +275,89 @@ select.form-input option{background:#ffffff}
 
 /* DETAIL PANEL */
 .detail-panel{background:#ffffff;border:1.5px solid var(--border);border-radius:var(--radius2);margin-bottom:16px;overflow:hidden;display:none;box-shadow:var(--shadow)}
+
+/* ── MICRO-INTERACTIONS & ANIMATIONS ─────────────────────────────── */
+
+/* Skeleton shimmer loader */
+@keyframes shimmer{0%{background-position:-700px 0}100%{background-position:700px 0}}
+.skeleton{background:linear-gradient(90deg,var(--bg2) 25%,var(--bg3) 50%,var(--bg2) 75%);background-size:700px 100%;animation:shimmer 1.4s infinite linear;border-radius:6px}
+.skeleton-card{background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:8px}
+.skeleton-line{height:12px;margin-bottom:8px}
+.skeleton-line.wide{width:80%}
+.skeleton-line.narrow{width:45%}
+.skeleton-line.short{width:30%}
+
+/* Detail panel slide-in */
+@keyframes panelSlideIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.detail-panel.open{display:block;animation:panelSlideIn .22s cubic-bezier(.16,1,.3,1)}
+
+/* Button press (active) state */
+.btn:active,.dash-tab:active,.port-generate-btn:active,.abtn:active{transform:scale(.97)!important;transition:transform .08s!important}
+button:active:not(:disabled){transform:scale(.97);transition:transform .08s!important}
+.stock-card:active{transform:translateY(-1px)!important}
+
+/* Watchlist pulse reward */
+@keyframes wlPulse{0%{transform:scale(1)}30%{transform:scale(1.22)}60%{transform:scale(.92)}100%{transform:scale(1)}}
+.wl-pulse{animation:wlPulse .35s cubic-bezier(.36,.07,.19,.97)}
+
+/* BUY signal pulse */
+@keyframes buyPulse{0%,100%{box-shadow:0 0 0 0 rgba(5,150,105,.4)}70%{box-shadow:0 0 0 8px rgba(5,150,105,0)}}
+.sig-buy-glow{animation:buyPulse 2s ease infinite}
+
+/* Price flash when updated */
+@keyframes priceFlashGreen{0%{background:rgba(5,150,105,.25)}100%{background:transparent}}
+@keyframes priceFlashRed{0%{background:rgba(220,38,38,.2)}100%{background:transparent}}
+.price-flash-up{animation:priceFlashGreen .8s ease forwards}
+.price-flash-down{animation:priceFlashRed .8s ease forwards}
+
+/* Number countup — P&L values fade in */
+@keyframes numFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.num-animate{animation:numFadeIn .4s ease forwards}
+
+/* Holdings row hover */
+.mp-holding-row:hover{background:var(--bg3)!important;cursor:pointer}
+
+/* Signal progress bar */
+@keyframes progressBar{from{width:0}to{width:var(--target-w,100%)}}
+.signal-progress-track{background:var(--bg3);border-radius:20px;height:6px;overflow:hidden;margin-top:6px}
+.signal-progress-fill{height:100%;border-radius:20px;background:linear-gradient(90deg,var(--primary),#7c3aed);animation:progressBar 25s linear forwards}
+
+/* Tab active indicator underline */
+@keyframes tabUnderline{from{width:0;opacity:0}to{width:100%;opacity:1}}
+.dash-tab.active::after{content:'';display:block;height:2px;background:currentColor;border-radius:2px;animation:tabUnderline .2s ease}
+
+/* Card entrance stagger */
+@keyframes cardEntrance{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.stock-card{animation:cardEntrance .18s ease both}
+
+/* Toast slide up — enhanced */
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(20px) scale(.95)}to{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}
+@keyframes toastOut{from{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}to{opacity:0;transform:translateX(-50%) translateY(-12px) scale(.95)}}
+
+/* Modal entrance */
+@keyframes modalEntrance{from{opacity:0;transform:translateY(20px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+.mp-modal{animation:modalEntrance .2s cubic-bezier(.16,1,.3,1)}
+
+/* Greatness score ring spin-in */
+@keyframes ringSpinIn{from{stroke-dashoffset:100;opacity:0}to{opacity:1}}
+.gc-score-ring{animation:numFadeIn .5s ease}
+
+/* Signal badge glow for BUY */
+.sig-badge-buy{position:relative}
+.sig-badge-buy::before{content:'';position:absolute;inset:-2px;border-radius:inherit;background:rgba(5,150,105,.15);animation:buyPulse 2.5s ease infinite}
+
+/* Screener row hover */
+.screener-row:hover{background:var(--bg3)!important;transition:background .1s}
+
+/* Smooth number transitions in KPI cards */
+.kpi-val{transition:color .3s ease}
+
+/* Mobile swipe indicator */
+@keyframes swipeHint{0%,100%{transform:translateX(0);opacity:.6}50%{transform:translateX(-8px);opacity:1}}
+.swipe-hint{animation:swipeHint 1.5s ease infinite}
+
+/* Input focus ring */
+input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-shadow:0 0 0 3px rgba(26,86,219,.12)!important;transition:box-shadow .15s,border-color .15s}
 .detail-panel.open{display:block}
 .dp-head{padding:18px 22px;border-bottom:1.5px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;background:linear-gradient(135deg,var(--bg3) 0%,#ffffff 100%)}
 .dp-title{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:var(--text)}
@@ -3143,6 +3226,15 @@ var SIGNAL_ENGINE = {
           if (typeof ALL_STOCKS !== 'undefined') ALL_STOCKS = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
           if (!visibleStocks || visibleStocks.length === 0) visibleStocks = STOCKS.slice();
           if (typeof buildStockGrid === 'function') buildStockGrid(visibleStocks);
+          // Flash price elements to show live update
+          setTimeout(function() {
+            document.querySelectorAll('.sc-price').forEach(function(el) {
+              var chgText = el.nextElementSibling ? el.nextElementSibling.textContent : '';
+              var isUp = chgText.indexOf('+') === 0 || chgText.indexOf('▲') >= 0;
+              el.classList.add(isUp ? 'price-flash-up' : 'price-flash-down');
+              setTimeout(function(){ el.classList.remove('price-flash-up','price-flash-down'); }, 900);
+            });
+          }, 200);
           // Re-render My Portfolio if open — so P&L reflects fresh prices
           var mpTab = document.getElementById('dtab-myportfolio');
           if (mpTab && mpTab.classList.contains('active') && typeof renderMyPortfolioModule === 'function') {
@@ -3756,7 +3848,8 @@ function _initDashboardCore(fresh) {
   }
 
   visibleStocks = STOCKS.slice(); // Start with NGX (default tab)
-  buildStockGrid(visibleStocks);
+  showStockGridSkeleton(); // Show shimmer skeletons while prices load
+  setTimeout(function() { buildStockGrid(visibleStocks); }, 300); // Brief skeleton display
   runScreener();
   renderCompare();
 
@@ -4061,6 +4154,24 @@ function updatePriceDateSubtitle(isoDateStr, market) {
 // PATCH buildStockGrid — show AI score badge on cards
 // ══════════════════════════════════════════════════════════════════════
 
+function showStockGridSkeleton() {
+  var g = document.getElementById('stock-grid');
+  if (!g) return;
+  var skels = '';
+  for (var i = 0; i < 8; i++) {
+    skels += '<div class="skeleton-card" style="animation-delay:' + (i*0.06) + 's">'
+      + '<div class="skeleton skeleton-line wide" style="height:14px;margin-bottom:10px"></div>'
+      + '<div class="skeleton skeleton-line narrow" style="height:10px;margin-bottom:14px"></div>'
+      + '<div style="display:flex;gap:8px;margin-bottom:10px">'
+      + '<div class="skeleton skeleton-line" style="height:28px;flex:1"></div>'
+      + '<div class="skeleton skeleton-line" style="height:28px;flex:1"></div>'
+      + '</div>'
+      + '<div class="skeleton skeleton-line short" style="height:10px"></div>'
+      + '</div>';
+  }
+  g.innerHTML = skels;
+}
+
 function buildStockGrid(list) {
   var g = document.getElementById('stock-grid');
   if (!g) return;
@@ -4092,7 +4203,7 @@ function buildStockGrid(list) {
     var sigBg    = s.sig === 'BUY' ? 'rgba(34,197,94,.12)' : s.sig === 'HOLD' ? 'rgba(245,158,11,.12)' : 'rgba(59,130,246,.1)';
     var aiSig    = SIGNAL_ENGINE.getDisplay(s.t) || s._aiSignal || null;
 
-    h += '<div class="stock-card' + (ia ? ' active' : '') + (locked ? ' locked' : '') + '" onclick="' + (locked ? 'promptUpgrade()' : 'clickStock(' + idx + ')') + '">';
+    h += '<div class="stock-card' + (ia ? ' active' : '') + (locked ? ' locked' : '') + '" onclick="' + (locked ? 'promptUpgrade()' : 'clickStock(' + idx + ')') + '" style="animation-delay:' + Math.min(i * 0.04, 0.5) + 's">';
     if (locked) h += '<div class="lock-overlay">🔒</div>';
 
     // US market badge (top-left) or signal dot (top-right area)
@@ -7545,7 +7656,14 @@ function wlToggle(ticker) {
 function updateWatchlistButtons(ticker, inWl) {
   document.querySelectorAll('.add-wl-btn[data-ticker="'+ticker+'"]').forEach(function(btn){
     btn.textContent = inWl ? '✓ In Watchlist' : '+ Watchlist';
-    if (inWl) btn.classList.add('in-wl'); else btn.classList.remove('in-wl');
+    if (inWl) {
+      btn.classList.add('in-wl');
+      // Pulse reward animation when adding
+      btn.classList.add('wl-pulse');
+      setTimeout(function(){ btn.classList.remove('wl-pulse'); }, 400);
+    } else {
+      btn.classList.remove('in-wl');
+    }
   });
 }
 
@@ -9335,11 +9453,20 @@ function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 function showAlert(el,msg){el.textContent=msg;el.classList.add('show');}
 
-function toast(msg,type){
-  var t=document.getElementById('toast');
-  t.textContent=msg;
-  t.className='toast '+(type||'info')+' show';
-  setTimeout(function(){t.classList.remove('show');},3500);
+function toast(msg, type) {
+  var t = document.getElementById('toast');
+  if (!t) return;
+  var icons = { success:'✓', error:'⚠', info:'ℹ', warning:'⚠' };
+  var icon = icons[type] || 'ℹ';
+  t.innerHTML = '<span style="font-size:14px;flex-shrink:0">' + icon + '</span>'
+    + '<span style="flex:1">' + msg + '</span>'
+    + '<span style="opacity:.6;cursor:pointer;font-size:16px;padding-left:8px" onclick="this.parentElement.classList.remove(\'show\')">✕</span>';
+  t.style.display = 'flex';
+  t.style.alignItems = 'center';
+  t.style.gap = '8px';
+  t.className = 'toast ' + (type || 'info') + ' show';
+  clearTimeout(t._toastTimer);
+  t._toastTimer = setTimeout(function() { t.classList.remove('show'); }, type === 'error' ? 5000 : 3500);
 }
 
 // Close modals on overlay click
@@ -9543,11 +9670,30 @@ function adminRunNGXSignals(missingOnly) {
   toast('Running AI signals for ' + modeLabel + '... This takes a few minutes.','info');
   _sigLog('NGX', 'Starting NGX signal run: ' + modeLabel + '...', 'info');
 
+  // Add progress bar to signal log
+  var sigLogEl = document.getElementById('ngx-sig-log');
+  if (sigLogEl) {
+    var progressBarHtml = '<div id="ngx-sig-progress-wrap" style="margin-bottom:8px">'
+      + '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:4px">'
+      + '<span>Generating signals...</span><span id="ngx-sig-pct">0%</span></div>'
+      + '<div class="signal-progress-track"><div class="signal-progress-fill" id="ngx-sig-bar"></div></div>'
+      + '</div>';
+    sigLogEl.insertAdjacentHTML('beforebegin', progressBarHtml);
+  }
+  var _ngxSigTotal = STOCKS.filter(function(s){ return !SIGNAL_ENGINE.signals[s.t] || !missingOnly; }).length || STOCKS.length;
+  var _ngxSigDone = 0;
+
   SIGNAL_ENGINE.runAll({
     skipExisting: missingOnly,
     onProgress: function(p) {
       if (!p.ticker) return;
-      if (p.skipped) return; // silently skip already-done stocks
+      if (p.skipped) return;
+      _ngxSigDone++;
+      var pct = Math.round((_ngxSigDone / _ngxSigTotal) * 100);
+      var pctEl = document.getElementById('ngx-sig-pct');
+      var barEl = document.getElementById('ngx-sig-bar');
+      if (pctEl) pctEl.textContent = pct + '%';
+      if (barEl) barEl.style.width = pct + '%';
       var sig = p.signal || null;
       var stock = STOCKS.find(function(s){ return s.t === p.ticker; });
       var bScore = stock ? (stock._buffettScore || computeBuffettScore(stock)) : '—';
@@ -9555,6 +9701,8 @@ function adminRunNGXSignals(missingOnly) {
       _sigLog('NGX', p.ticker + ' → ' + (sig || 'error') + ' (' + bScore + '/10)' + errInfo, sig ? 'ok' : 'err');
     },
     onComplete: function(r) {
+      var progressWrap = document.getElementById('ngx-sig-progress-wrap');
+      if (progressWrap) progressWrap.remove();
       var newlyDone = STOCKS.filter(function(s){ return SIGNAL_ENGINE.signals[s.t]; }).length;
       _sigLog('NGX', 'Done: ' + newlyDone + '/' + STOCKS.length + ' NGX signals now cached', 'ok');
       adminLoadNGXStatus();
@@ -11879,11 +12027,19 @@ function renderMyPortfolioModule() {
       html += '</div>';
     });
   } else {
-    html += '<div style="text-align:center;padding:28px;color:var(--text3)">';
-    html += '<div style="font-size:32px;margin-bottom:8px">📋</div>';
-    html += '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">No portfolios yet</div>';
-    html += '<div style="font-size:12px;margin-bottom:16px">Create your first portfolio or save an AI-generated one.</div>';
-    html += '<button onclick="mpOpenCreateModal()" class="btn btn-gold">+ Create Portfolio</button>';
+    html += '<div style="text-align:center;padding:36px 24px;color:var(--text3)">';
+    html += '<div style="font-size:40px;margin-bottom:12px">📋</div>';
+    html += '<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:var(--text);margin-bottom:8px">No portfolios yet</div>';
+    html += '<div style="font-size:13px;color:var(--text3);max-width:380px;margin:0 auto 20px;line-height:1.7">Track your investments with live P&L, history, and performance reports. Get started in 2 steps:</div>';
+    html += '<div style="background:var(--bg2);border:1.5px solid var(--border);border-radius:12px;padding:16px;max-width:380px;margin:0 auto 20px;text-align:left">';
+    html += '<div style="font-size:12px;color:var(--text);margin-bottom:10px"><strong>Option 1 — Manual portfolio</strong></div>';
+    html += '<div style="font-size:11px;color:var(--text3);line-height:1.8">① Click <strong>+ New Portfolio</strong><br>② Click <strong>+ Add Stock</strong><br>③ Enter the ticker, shares you hold, and what you paid</div>';
+    html += '</div>';
+    html += '<div style="background:linear-gradient(135deg,rgba(26,86,219,.06),rgba(124,58,237,.06));border:1.5px solid rgba(26,86,219,.15);border-radius:12px;padding:16px;max-width:380px;margin:0 auto 20px;text-align:left">';
+    html += '<div style="font-size:12px;color:var(--primary);margin-bottom:10px"><strong>Option 2 — AI-generated portfolio</strong></div>';
+    html += '<div style="font-size:11px;color:var(--text3);line-height:1.8">Go to <strong>💼 AI Portfolio</strong> tab → set your amount and goals → click <strong>Generate</strong> → click <strong>Save to My Portfolio</strong></div>';
+    html += '</div>';
+    html += '<button onclick="mpOpenCreateModal()" class="btn btn-gold" style="padding:11px 24px;font-size:13px">+ Create My First Portfolio</button>';
     html += '</div>';
   }
 
@@ -11960,6 +12116,54 @@ function mpRenderEmpty(root, all) {
     + '</div></div>';
 }
 
+// ── NUMBER COUNTUP ANIMATION ──────────────────────────────────────────
+function animateCountup(el, target, duration, prefix, suffix) {
+  if (!el) return;
+  duration = duration || 800;
+  prefix = prefix || '';
+  suffix = suffix || '';
+  var start = 0;
+  var startTime = null;
+  var isNeg = target < 0;
+  var absTarget = Math.abs(target);
+
+  function step(timestamp) {
+    if (!startTime) startTime = timestamp;
+    var progress = Math.min((timestamp - startTime) / duration, 1);
+    var ease = 1 - Math.pow(1 - progress, 3); // cubic ease out
+    var current = Math.round(ease * absTarget);
+    var formatted = current >= 1e9 ? (current/1e9).toFixed(2) + 'B'
+                  : current >= 1e6 ? (current/1e6).toFixed(2) + 'M'
+                  : current >= 1e3 ? (current/1e3).toFixed(0) + 'K'
+                  : current.toLocaleString();
+    el.textContent = prefix + (isNeg ? '-' : '') + formatted + suffix;
+    if (progress < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// ── MOBILE SWIPE-TO-CLOSE DETAIL PANEL ───────────────────────────────
+(function() {
+  var _touchStartY = 0;
+  var _touchStartX = 0;
+  document.addEventListener('touchstart', function(e) {
+    _touchStartY = e.touches[0].clientY;
+    _touchStartX = e.touches[0].clientX;
+  }, { passive: true });
+  document.addEventListener('touchend', function(e) {
+    var dp = document.getElementById('detail-panel');
+    if (!dp || !dp.classList.contains('open')) return;
+    var deltaY = e.changedTouches[0].clientY - _touchStartY;
+    var deltaX = Math.abs(e.changedTouches[0].clientX - _touchStartX);
+    // Swipe down > 80px on mobile closes the panel
+    if (deltaY > 80 && deltaX < 60) {
+      dp.className = 'detail-panel';
+      dp.innerHTML = '';
+      document.querySelectorAll('.stock-card').forEach(function(c){ c.classList.remove('active'); });
+    }
+  }, { passive: true });
+})();
+
 function mpRenderDashboard(root, port, calc, all) {
   var sym = port.currency === 'USD' ? '$' : '₦';
   var isUp = calc.totalPnl >= 0;
@@ -12011,21 +12215,32 @@ function mpRenderDashboard(root, port, calc, all) {
 
   html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">';
   var kpiData = [
-    { v: fmtFull(calc.totalValue), l: 'Portfolio Value', s: 'Live prices', c: '#fff', bg: 'rgba(255,255,255,.15)' },
-    { v: fmtFull(calc.totalCost),  l: 'Cost Basis',      s: 'Invested',    c: '#93c5fd', bg: 'rgba(255,255,255,.1)' },
-    { v: (isUp?'+':'-')+fmtFull(calc.totalPnl), l: 'Unrealised P&L', s: (isUp?'+':'')+calc.totalPnlPct.toFixed(2)+'% return', c: isUp?'#4ade80':'#fca5a5', bg: isUp?'rgba(74,222,128,.15)':'rgba(252,165,165,.15)' },
+    { id:'mp-kpi-val',  v: fmtFull(calc.totalValue), raw: calc.totalValue,  l: 'Portfolio Value',  s: 'Live prices',   c: '#fff',      bg: 'rgba(255,255,255,.15)' },
+    { id:'mp-kpi-cost', v: fmtFull(calc.totalCost),  raw: calc.totalCost,   l: 'Cost Basis',       s: 'Invested',      c: '#93c5fd',   bg: 'rgba(255,255,255,.1)' },
+    { id:'mp-kpi-pnl',  v: (isUp?'+':'-')+fmtFull(calc.totalPnl), raw: calc.totalPnl, l: 'Unrealised P&L', s: (isUp?'+':'')+calc.totalPnlPct.toFixed(2)+'% return', c: isUp?'#4ade80':'#fca5a5', bg: isUp?'rgba(74,222,128,.15)':'rgba(252,165,165,.15)' },
     port.isAI && port.aiBacktest
-      ? { v: '+'+port.aiBacktest.totalReturn+'%', l: 'AI Backtest', s: 'Alpha: +'+port.aiBacktest.alpha+'%', c: '#fbbf24', bg: 'rgba(251,191,36,.15)' }
-      : { v: calc.holdings.filter(function(h){return h.pnl>=0;}).length+'/'+calc.holdings.length, l: 'Winners', s: 'Above cost', c: '#fff', bg: 'rgba(255,255,255,.1)' },
+      ? { id:'mp-kpi-ai', v: '+'+port.aiBacktest.totalReturn+'%', raw: null, l: 'AI Backtest', s: 'Alpha: +'+port.aiBacktest.alpha+'%', c: '#fbbf24', bg: 'rgba(251,191,36,.15)' }
+      : { id:'mp-kpi-win', v: calc.holdings.filter(function(h){return h.pnl>=0;}).length+'/'+calc.holdings.length, raw: null, l: 'Winners', s: 'Above cost', c: '#fff', bg: 'rgba(255,255,255,.1)' },
   ];
   kpiData.forEach(function(k) {
     html += '<div style="background:'+k.bg+';border-radius:10px;padding:12px 14px">';
-    html += '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:'+k.c+';margin-bottom:2px">'+k.v+'</div>';
+    html += '<div id="'+k.id+'" class="num-animate" style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:'+k.c+';margin-bottom:2px">'+k.v+'</div>';
     html += '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.04em">'+k.l+'</div>';
     html += '<div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:1px">'+k.s+'</div>';
     html += '</div>';
   });
   html += '</div></div>';
+
+  // Schedule countup animation after render
+  var _kpiCountup = kpiData;
+  var _kpiSym = sym;
+  setTimeout(function() {
+    _kpiCountup.forEach(function(k) {
+      if (k.raw === null) return;
+      var el = document.getElementById(k.id);
+      if (el) animateCountup(el, k.raw, 900, _kpiSym, '');
+    });
+  }, 150);
 
   // ── CHARTS ROW ───────────────────────────────────────────────────
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">';
@@ -12206,6 +12421,9 @@ function mpOpenAddModal(prefill) {
     + '<button class="mp-modal-close" data-modal="mp-add-overlay" style="background:transparent;border:none;font-size:20px;color:var(--text3);cursor:pointer">✕</button>'
     + '</div>'
     + '<div class="mp-modal-body">'
+    + '<div style="background:rgba(26,86,219,.06);border-left:3px solid var(--primary);border-radius:6px;padding:9px 12px;margin-bottom:14px;font-size:11px;color:var(--text3);line-height:1.7">'
+    + '📌 <strong style="color:var(--text)">Enter YOUR actual investment details</strong> — the price you paid when you bought, not today\'s price. This is how your P&amp;L is calculated accurately.'
+    + '</div>'
     + '<div class="mp-input-row">'
     + '<div class="mp-input-group"><label>Portfolio</label><select id="mp-add-portid">'+portOptions+'</select></div>'
     + '<div class="mp-input-group"><label>Ticker Symbol</label><input id="mp-add-ticker" placeholder="e.g. ZENITHBANK" style="text-transform:uppercase" value="'+(prefill||'')+'"></div>'
@@ -12216,7 +12434,7 @@ function mpOpenAddModal(prefill) {
     + '</div>'
     + '<div class="mp-input-row">'
     + '<div class="mp-input-group"><label>Quantity (shares)</label><input id="mp-add-qty" type="number" min="1" placeholder="e.g. 5000"></div>'
-    + '<div class="mp-input-group"><label>Average Cost Price</label><input id="mp-add-cost" type="number" min="0" step="0.01" placeholder="e.g. 28.50"></div>'
+    + '<div class="mp-input-group"><label>Your Purchase Price <span style="font-size:10px;color:var(--text3);font-weight:400">(the price YOU paid — not today\'s price)</span></label><input id="mp-add-cost" type="number" min="0" step="0.01" placeholder="Enter the price you actually paid"></div>'
     + '</div>'
     + '<div class="mp-input-row">'
     + '<div class="mp-input-group"><label>Purchase Date</label><input id="mp-add-date" type="date" value="'+todayDate+'"></div>'
@@ -12240,7 +12458,10 @@ function mpOpenAddModal(prefill) {
       var costEl = document.getElementById('mp-add-cost');
       if (nameEl) nameEl.value = s.n;
       if (secEl)  secEl.value  = s.sec;
-      if (costEl) costEl.value = s.price;
+      // Show current price as placeholder hint only — don't overwrite what user may have typed
+      if (costEl && !costEl.value) {
+        costEl.placeholder = 'Current: ' + (s.price || 'N/A') + ' — enter YOUR purchase price';
+      }
     }
   });
 }
@@ -12320,35 +12541,38 @@ function mpAddHolding() {
   var date   = document.getElementById('mp-add-date').value;
   var notes  = document.getElementById('mp-add-notes').value.trim();
 
-  if (!ticker) { toast('Enter a ticker symbol', 'error'); return; }
-  if (!qty || qty <= 0) { toast('Enter a valid quantity', 'error'); return; }
-  if (!cost || cost <= 0) { toast('Enter a valid cost price', 'error'); return; }
+  // Clear user-friendly validation
+  if (!ticker) { toast('⚠️ Please enter a ticker symbol (e.g. ZENITHBANK)', 'error'); return; }
+  if (!qty || qty <= 0) { toast('⚠️ Please enter how many shares you bought', 'error'); return; }
+  if (!cost || cost <= 0) { toast('⚠️ Please enter the price you paid per share', 'error'); return; }
 
   // Auto-detect name/sector if blank — NGX first, then US
   if (!name || !sector) {
     var s = (typeof STOCKS !== 'undefined' ? STOCKS : []).find(function(x){ return x.t === ticker; });
     if (!s && typeof US_STOCKS !== 'undefined') s = US_STOCKS.find(function(x){ return x.t === ticker; });
     if (s) { if (!name) name = s.n; if (!sector) sector = s.sec; }
+    if (!name) name = ticker; // fallback to ticker if not in database
   }
 
   var all = mpGetAll();
   var port = all.find(function(p){ return p.id === portId; });
-  if (!port) { toast('Portfolio not found', 'error'); return; }
+  if (!port) { toast('⚠️ Portfolio not found — please refresh and try again', 'error'); return; }
+
+  var sym = port.currency === 'USD' ? '$' : '₦';
 
   // Check if ticker already exists in this portfolio — update instead
   var existing = (port.holdings || []).find(function(h){ return h.ticker === ticker; });
   if (existing) {
-    // Weighted average cost
     var totalQty  = existing.qty + qty;
     var totalCost = (existing.avgCost * existing.qty) + (cost * qty);
     existing.qty     = totalQty;
     existing.avgCost = Math.round(totalCost / totalQty * 100) / 100;
     existing.notes   = notes || existing.notes;
-    toast('✓ Updated ' + ticker + ' — new avg cost: ' + (port.currency==='USD'?'$':'₦') + existing.avgCost, 'success');
+    toast('✓ Updated ' + ticker + ' — total ' + totalQty.toLocaleString() + ' shares · New avg cost: ' + sym + existing.avgCost.toLocaleString(), 'success');
   } else {
     port.holdings = port.holdings || [];
     port.holdings.push({ ticker:ticker, name:name||ticker, sector:sector||'Unknown', qty:qty, avgCost:cost, purchaseDate:date, notes:notes, addedAt:new Date().toISOString() });
-    toast('✓ ' + ticker + ' added to ' + port.name, 'success');
+    toast('✓ Added ' + qty.toLocaleString() + ' shares of ' + ticker + ' (' + name + ') at ' + sym + cost + ' to ' + port.name, 'success');
   }
   mpLogEvent(port.id, { ticker:ticker, name:name||ticker, sector:sector||'Unknown', action:'buy', qty:qty, price:cost, tradeDate:date, trigger:'manual' });
 
@@ -12810,10 +13034,36 @@ function mpSetActive(portId) {
 }
 
 function mpDelete(portId) {
-  if (!confirm('Delete this portfolio? This cannot be undone.')) return;
+  if (!confirm('Delete this portfolio permanently?\n\nThis will remove it from all your devices and cannot be undone.')) return;
+
+  // Remove from local cache immediately
   var all = mpGetAll().filter(function(p){ return p.id !== portId; });
   if (all.length) all[0].active = true;
-  mpSaveAll(all);
+  _mpCache = all;
+  try { localStorage.setItem(MP_KEY, JSON.stringify(all)); } catch(e) {}
+
+  // Delete from Supabase
+  var sb = getSupabase ? getSupabase() : null;
+  if (sb && currentUser && currentUser.id) {
+    sb.from('user_portfolios').delete().eq('id', portId).eq('user_id', currentUser.id)
+      .then(function(res) {
+        if (res.error) {
+          console.error('[Portfolio] Supabase delete failed:', res.error.message);
+          toast('⚠️ Portfolio removed locally but cloud delete failed. Try again.', 'error');
+        } else {
+          console.log('[Portfolio] ✓ Deleted portfolio from Supabase:', portId);
+          toast('Portfolio deleted successfully', 'info');
+        }
+      }).catch(function(e) {
+        console.error('[Portfolio] Delete error:', e.message);
+        toast('⚠️ Delete error: ' + e.message, 'error');
+      });
+  } else {
+    toast('Portfolio deleted', 'info');
+  }
+
+  // Also save the updated list (deactivate/activate as needed)
+  if (all.length) mpSaveAll(all);
   renderMyPortfolioModule();
 }
 
