@@ -12098,6 +12098,9 @@ function renderMyPortfolioModule() {
     html += '</div></div>';
   }
 
+  // ── PORTFOLIO ANALYSER (always shown at bottom of My Portfolio) ───
+  html += mpBuildAnalyserHTML();
+
   root.innerHTML = html;
 }
 
@@ -13831,6 +13834,516 @@ function gcDeleteSavedScreen(screenId) {
 
 // ══════════════════════════════════════════════════════════════════════
 // END GREAT COMPANY STRATEGY
+// ══════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════
+// PORTFOLIO ANALYSER — Upload, Backtest, Futuretest, Rebalance
+// Lives inside My Portfolio tab
+// ══════════════════════════════════════════════════════════════════════
+
+function mpBuildAnalyserHTML() {
+  return '<div class="mp-card" id="mp-analyser-card" style="margin-top:16px;border:1.5px solid rgba(26,86,219,.2);background:linear-gradient(135deg,rgba(26,86,219,.03),rgba(124,58,237,.03))">'
+    + '<div class="mp-card-hdr">'
+    + '<div><div class="mp-card-title">📤 Portfolio Analyser</div>'
+    + '<div style="font-size:11px;color:var(--text3);margin-top:2px">Upload your existing portfolio · Backtest · Futuretest · Rebalance</div></div>'
+    + '<button onclick="mpToggleAnalyser()" id="mp-analyser-toggle" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">Upload Portfolio</button>'
+    + '</div>'
+    + '<div id="mp-analyser-body" style="display:none">'
+    + mpBuildAnalyserUploadUI()
+    + '</div></div>';
+}
+
+function mpBuildAnalyserUploadUI() {
+  return '<div id="mp-analyser-upload">'
+    + '<div style="display:flex;gap:8px;margin-bottom:14px">'
+    + '<button onclick="mpAnalyserTab(\'csv\')" id="mp-atab-csv" class="btn btn-gold btn-sm" style="flex:1">📄 Upload CSV</button>'
+    + '<button onclick="mpAnalyserTab(\'paste\')" id="mp-atab-paste" class="btn btn-ghost btn-sm dark" style="flex:1">✏️ Paste Holdings</button>'
+    + '</div>'
+
+    // CSV upload
+    + '<div id="mp-atab-csv-body">'
+    + '<div style="background:var(--bg3);border:2px dashed var(--border);border-radius:10px;padding:24px;text-align:center;margin-bottom:12px;cursor:pointer" onclick="document.getElementById(\'mp-csv-input\').click()">'
+    + '<div style="font-size:32px;margin-bottom:8px">📄</div>'
+    + '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">Click to upload CSV file</div>'
+    + '<div style="font-size:11px;color:var(--text3)">Format: TICKER, QUANTITY, PURCHASE_PRICE (one per row)</div>'
+    + '<div style="font-size:10px;color:var(--text3);margin-top:4px">Example: ZENITHBANK, 5000, 85.50</div>'
+    + '</div>'
+    + '<input type="file" id="mp-csv-input" accept=".csv,.txt" style="display:none" onchange="mpAnalyserParseCSV(this)">'
+    + '</div>'
+
+    // Paste input
+    + '<div id="mp-atab-paste-body" style="display:none">'
+    + '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">One stock per line: <strong>TICKER, QUANTITY, PURCHASE_PRICE</strong><br>Example: ZENITHBANK, 5000, 85.50</div>'
+    + '<textarea id="mp-paste-input" rows="8" placeholder="ZENITHBANK, 5000, 85.50&#10;DANGCEM, 1000, 950.00&#10;MTNN, 2000, 200.00&#10;SEPLAT, 500, 4500.00" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-family:DM Mono,monospace;font-size:12px;background:var(--bg);color:var(--text);resize:vertical;box-sizing:border-box"></textarea>'
+    + '<button onclick="mpAnalyserParsePaste()" class="btn btn-gold" style="width:100%;margin-top:10px">Analyse Portfolio</button>'
+    + '</div>'
+
+    + '<div id="mp-analyser-results"></div>'
+    + '</div>';
+}
+
+function mpToggleAnalyser() {
+  var body = document.getElementById('mp-analyser-body');
+  var btn  = document.getElementById('mp-analyser-toggle');
+  if (!body || !btn) return;
+  var open = body.style.display === 'block';
+  body.style.display = open ? 'none' : 'block';
+  btn.textContent = open ? 'Upload Portfolio' : '✕ Close';
+}
+
+function mpAnalyserTab(tab) {
+  document.getElementById('mp-atab-csv-body').style.display  = tab === 'csv'   ? 'block' : 'none';
+  document.getElementById('mp-atab-paste-body').style.display = tab === 'paste' ? 'block' : 'none';
+  document.getElementById('mp-atab-csv').className   = 'btn btn-sm ' + (tab === 'csv'   ? 'btn-gold' : 'btn-ghost dark');
+  document.getElementById('mp-atab-paste').className = 'btn btn-sm ' + (tab === 'paste' ? 'btn-gold' : 'btn-ghost dark');
+}
+
+function mpAnalyserParseCSV(input) {
+  var file = input.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    mpAnalyserProcessText(e.target.result);
+  };
+  reader.readAsText(file);
+}
+
+function mpAnalyserParsePaste() {
+  var text = document.getElementById('mp-paste-input').value;
+  if (!text.trim()) { toast('Please paste your holdings first', 'error'); return; }
+  mpAnalyserProcessText(text);
+}
+
+function mpAnalyserProcessText(text) {
+  var lines = text.split('\n').map(function(l){ return l.trim(); }).filter(function(l){ return l && !l.startsWith('#'); });
+  var holdings = [];
+  var errors = [];
+
+  lines.forEach(function(line, idx) {
+    // Support comma, semicolon, tab delimiters
+    var parts = line.split(/[,;\t]+/).map(function(p){ return p.trim().replace(/[₦$"']/g,''); });
+    if (parts.length < 2) { errors.push('Line ' + (idx+1) + ': "' + line + '" — need at least TICKER and QUANTITY'); return; }
+    var ticker = parts[0].toUpperCase();
+    var qty    = parseFloat(parts[1]) || 0;
+    var price  = parseFloat(parts[2]) || 0;
+
+    if (!ticker) { errors.push('Line ' + (idx+1) + ': missing ticker'); return; }
+    if (qty <= 0) { errors.push('Line ' + (idx+1) + ': invalid quantity for ' + ticker); return; }
+
+    // Look up stock data
+    var stockData = (typeof STOCKS !== 'undefined' ? STOCKS : []).find(function(s){ return s.t === ticker; });
+    if (!stockData && typeof US_STOCKS !== 'undefined') stockData = US_STOCKS.find(function(s){ return s.t === ticker; });
+
+    if (!price && stockData) price = stockData.price; // fallback to current price if no purchase price given
+
+    holdings.push({
+      ticker: ticker,
+      name:   stockData ? stockData.n : ticker,
+      sector: stockData ? stockData.sec : 'Unknown',
+      qty:    qty,
+      purchasePrice: price,
+      currentPrice:  stockData ? stockData.price : price,
+      stockData:     stockData || null
+    });
+  });
+
+  if (!holdings.length) {
+    toast('No valid holdings found. Check your format: TICKER, QUANTITY, PRICE', 'error');
+    return;
+  }
+
+  if (errors.length) {
+    toast('⚠️ ' + errors.length + ' line(s) skipped — check format', 'warning');
+  }
+
+  mpAnalyserRunAnalysis(holdings);
+}
+
+function mpAnalyserRunAnalysis(holdings) {
+  var resultsEl = document.getElementById('mp-analyser-results');
+  if (!resultsEl) return;
+
+  resultsEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3)">'
+    + '<div style="font-size:24px;margin-bottom:8px">⏳</div>'
+    + '<div style="font-size:13px">Analysing ' + holdings.length + ' holdings...</div>'
+    + '</div>';
+
+  // Store for AI analysis later
+  window._analyserHoldings = holdings;
+
+  // ── 1. CALCULATE CURRENT P&L ───────────────────────────────────────
+  var totalCost = 0, totalValue = 0;
+  holdings.forEach(function(h) {
+    h.cost  = h.purchasePrice * h.qty;
+    h.value = h.currentPrice  * h.qty;
+    h.pnl   = h.value - h.cost;
+    h.pnlPct = h.cost > 0 ? (h.pnl / h.cost * 100) : 0;
+    totalCost  += h.cost;
+    totalValue += h.value;
+  });
+  var totalPnl    = totalValue - totalCost;
+  var totalPnlPct = totalCost > 0 ? (totalPnl / totalCost * 100) : 0;
+  var isUp = totalPnl >= 0;
+
+  // ── 2. GREAT COMPANY SCORES ────────────────────────────────────────
+  holdings.forEach(function(h) {
+    if (h.stockData) {
+      h.gcScore    = h.stockData._gcScore    !== undefined ? h.stockData._gcScore    : 0;
+      h.gcPassed   = h.stockData._gcPassed   !== undefined ? h.stockData._gcPassed   : 0;
+      h.gcDecision = h.stockData._gcDecision !== undefined ? h.stockData._gcDecision : 'Unknown';
+      h.aiSignal   = h.stockData.sig || 'HOLD';
+    } else {
+      h.gcScore = 0; h.gcPassed = 0; h.gcDecision = 'Unknown'; h.aiSignal = 'HOLD';
+    }
+  });
+
+  // ── 3. REBALANCE SUGGESTIONS (GC + AI Signal dual confirmation) ────
+  var toSell = [], toMonitor = [], toHold = [];
+  holdings.forEach(function(h) {
+    var gcFail  = h.gcScore < 67;
+    var gcBorderline = h.gcScore >= 67 && h.gcScore < 83;
+    var sigBad  = h.aiSignal === 'WATCH' || h.aiSignal === 'SELL';
+    var sigGood = h.aiSignal === 'BUY';
+
+    if (gcFail && sigBad)   { toSell.push(h); }
+    else if (gcFail && !sigBad) { toMonitor.push(h); } // fails GC but signal not bad
+    else if (gcBorderline && sigBad) { toMonitor.push(h); }
+    else { toHold.push(h); }
+  });
+
+  // Replacement suggestions — 83%+ GC + BUY signal, not already held
+  var heldTickers = holdings.map(function(h){ return h.ticker; });
+  // ── Market detection — support NGX, US, and mixed portfolios ─────
+  var ngxCount = holdings.filter(function(h){ return !h.stockData || h.stockData.market !== 'US'; }).length;
+  var usCount  = holdings.filter(function(h){ return h.stockData && h.stockData.market === 'US'; }).length;
+  var isMixed  = ngxCount > 0 && usCount > 0;
+  var isUSPort = usCount > 0 && ngxCount === 0; // pure US only
+  var sym = isUSPort ? '$' : '₦'; // default to NGN for mixed or pure NGX
+
+  // For mixed portfolios, tag each holding with its currency
+  holdings.forEach(function(h) {
+    h.isUS = h.stockData && h.stockData.market === 'US';
+    h.sym  = h.isUS ? '$' : '₦';
+  });
+
+  // Replacement pool — show both markets for mixed portfolios
+  var pool = [];
+  if (!isUSPort) pool = pool.concat(typeof STOCKS !== 'undefined' ? STOCKS : []);
+  if (isUSPort || isMixed) pool = pool.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
+  var replacements = pool.filter(function(s){
+    return s._gcScore >= 83 && s.sig === 'BUY' && heldTickers.indexOf(s.t) === -1;
+  }).sort(function(a,b){ return b._gcScore - a._gcScore; }).slice(0, 5);
+
+  // ── 4. MATHEMATICAL FUTURETEST (6 months) ─────────────────────────
+  var avgROE = holdings.reduce(function(sum, h){ return sum + (h.stockData ? parseFloat((h.stockData.roe||'0').replace('%',''))||0 : 0); }, 0) / holdings.length;
+  var avgRevGrowth = holdings.reduce(function(sum, h){ return sum + (h.stockData ? parseFloat((h.stockData.revy||'0').replace(/[+%]/g,''))||0 : 0); }, 0) / holdings.length;
+  var avgGC = holdings.reduce(function(sum, h){ return sum + h.gcScore; }, 0) / holdings.length;
+
+  // Monthly growth rate estimate based on GC quality and fundamentals
+  var monthlyGrowthRate = Math.min(15, Math.max(-2,
+    (avgROE * 0.15) + (avgRevGrowth * 0.08) + (avgGC * 0.05) - 3
+  )) / 100;
+
+  var futureMonths = [];
+  var runningValue = totalValue;
+  var now = new Date();
+  for (var m = 1; m <= 6; m++) {
+    var d = new Date(now.getFullYear(), now.getMonth() + m, 1);
+    var label = d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+    runningValue = runningValue * (1 + monthlyGrowthRate);
+    futureMonths.push({ label: label, value: Math.round(runningValue), gain: Math.round(runningValue - totalValue), gainPct: ((runningValue - totalValue) / totalValue * 100).toFixed(1) });
+  }
+
+  // ── 5. RENDER RESULTS ─────────────────────────────────────────────
+  var sym = isUSPort ? '$' : '₦';
+  var html = '';
+
+  // Mixed portfolio notice
+  if (isMixed) {
+    html += '<div style="background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.2);border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:11px;color:var(--amber)">';
+    html += '⚠️ <strong>Mixed portfolio detected</strong> — ' + ngxCount + ' NGX stock(s) and ' + usCount + ' US stock(s). P&L shown in respective currencies per holding.';
+    html += '</div>';
+  }
+
+  // Summary KPIs
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0">';
+  html += '<div style="background:var(--bg3);border-radius:10px;padding:12px;text-align:center"><div style="font-size:11px;color:var(--text3);margin-bottom:4px">Portfolio Value</div><div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:var(--text)">' + sym + Math.round(totalValue).toLocaleString() + '</div></div>';
+  html += '<div style="background:var(--bg3);border-radius:10px;padding:12px;text-align:center"><div style="font-size:11px;color:var(--text3);margin-bottom:4px">Total P&L</div><div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:' + (isUp?'var(--green)':'var(--red)') + '">' + (isUp?'+':'') + sym + Math.round(totalPnl).toLocaleString() + '</div></div>';
+  html += '<div style="background:var(--bg3);border-radius:10px;padding:12px;text-align:center"><div style="font-size:11px;color:var(--text3);margin-bottom:4px">Avg GC Score</div><div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:' + (avgGC>=83?'var(--green)':avgGC>=67?'var(--amber)':'var(--red)') + '">' + Math.round(avgGC) + '%</div></div>';
+  html += '</div>';
+
+  // Holdings breakdown
+  html += '<div style="margin-bottom:16px"><div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">📊 Holdings Analysis</div>';
+  html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
+  html += '<thead><tr style="background:var(--bg3)">';
+  ['Stock','Qty','Cost','Current','P&L','GC%','Signal','Action'].forEach(function(h){
+    html += '<th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:700;color:var(--text3);white-space:nowrap">' + h + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+
+  holdings.forEach(function(h) {
+    var gcColor = h.gcScore>=83?'var(--green)':h.gcScore>=67?'var(--amber)':'var(--red)';
+    var sigColor = h.aiSignal==='BUY'?'var(--green)':h.aiSignal==='HOLD'?'var(--text3)':'var(--red)';
+    var action = toSell.indexOf(h)>=0 ? '<span style="color:var(--red);font-weight:700">EXIT</span>'
+               : toMonitor.indexOf(h)>=0 ? '<span style="color:var(--amber);font-weight:700">MONITOR</span>'
+               : '<span style="color:var(--green);font-weight:700">HOLD</span>';
+    html += '<tr style="border-bottom:1px solid var(--border)">';
+    html += '<td style="padding:8px 10px"><div style="font-weight:700;color:var(--text)">' + h.ticker + '</div><div style="font-size:10px;color:var(--text3)">' + (h.name.length>15?h.name.substring(0,15)+'...':h.name) + '</div></td>';
+    html += '<td style="padding:8px 10px;color:var(--text2)">' + Number(h.qty).toLocaleString() + '</td>';
+    html += '<td style="padding:8px 10px;color:var(--text2)">' + h.sym + h.purchasePrice.toLocaleString() + '</td>';
+    html += '<td style="padding:8px 10px;font-weight:700;color:var(--text)">' + h.sym + h.currentPrice.toLocaleString() + '</td>';
+    html += '<td style="padding:8px 10px;font-weight:700;color:' + (h.pnl>=0?'var(--green)':'var(--red)') + '">' + (h.pnl>=0?'+':'') + h.sym + Math.round(h.pnl).toLocaleString() + '<div style="font-size:10px">' + (h.pnlPct>=0?'+':'') + h.pnlPct.toFixed(1) + '%</div></td>';
+    html += '<td style="padding:8px 10px;font-weight:800;color:' + gcColor + '">' + h.gcScore + '%<div style="font-size:10px;color:var(--text3)">' + h.gcPassed + '/6</div></td>';
+    html += '<td style="padding:8px 10px;font-weight:700;color:' + sigColor + '">' + h.aiSignal + '</td>';
+    html += '<td style="padding:8px 10px">' + action + '</td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table></div></div>';
+
+  // Rebalance suggestions
+  if (toSell.length || toMonitor.length) {
+    html += '<div style="background:rgba(220,38,38,.05);border:1.5px solid rgba(220,38,38,.15);border-radius:10px;padding:14px;margin-bottom:14px">';
+    html += '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">⚖️ Rebalance Recommendations</div>';
+    if (toSell.length) {
+      html += '<div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:6px">EXIT — Fails Great Company criteria AND signal downgraded:</div>';
+      toSell.forEach(function(h){ html += '<div style="font-size:12px;color:var(--text);padding:4px 0">• <strong>' + h.ticker + '</strong> — GC ' + h.gcScore + '% · Signal ' + h.aiSignal + ' · P&L ' + (h.pnlPct>=0?'+':'') + h.pnlPct.toFixed(1) + '%</div>'; });
+    }
+    if (toMonitor.length) {
+      html += '<div style="font-size:11px;font-weight:700;color:var(--amber);margin-top:8px;margin-bottom:6px">MONITOR — Fails GC but signal still positive:</div>';
+      toMonitor.forEach(function(h){ html += '<div style="font-size:12px;color:var(--text);padding:4px 0">• <strong>' + h.ticker + '</strong> — GC ' + h.gcScore + '% · Signal ' + h.aiSignal + ' · Watch for improvement</div>'; });
+    }
+    if (replacements.length) {
+      html += '<div style="font-size:11px;font-weight:700;color:var(--green);margin-top:10px;margin-bottom:6px">SUGGESTED REPLACEMENTS (83%+ Great Company + BUY signal):</div>';
+      replacements.forEach(function(s){ html += '<div style="font-size:12px;color:var(--text);padding:4px 0">• <strong>' + s.t + '</strong> (' + s.n + ') — GC ' + s._gcScore + '% · P/E ' + s.pe + 'x · ROE ' + s.roe + '</div>'; });
+    }
+    html += '</div>';
+  } else {
+    html += '<div style="background:rgba(5,150,105,.06);border:1.5px solid rgba(5,150,105,.2);border-radius:10px;padding:14px;margin-bottom:14px">';
+    html += '<div style="font-size:13px;font-weight:700;color:var(--green)">✓ Portfolio looks well positioned</div>';
+    html += '<div style="font-size:12px;color:var(--text3);margin-top:4px">All holdings either meet Great Company criteria or have positive AI signals. No urgent rebalancing needed.</div>';
+    html += '</div>';
+  }
+
+  // Mathematical futuretest
+  html += '<div style="margin-bottom:16px"><div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">📈 6-Month Mathematical Projection</div>';
+  html += '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">Based on avg ROE ' + avgROE.toFixed(1) + '% · Revenue growth ' + avgRevGrowth.toFixed(1) + '% · GC score ' + Math.round(avgGC) + '% · Est. monthly growth ' + (monthlyGrowthRate*100).toFixed(2) + '%</div>';
+  html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
+  html += '<tr style="background:var(--bg3)"><th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:700;color:var(--text3)">Month</th><th style="padding:8px 10px;text-align:right;font-size:10px;font-weight:700;color:var(--text3)">Projected Value</th><th style="padding:8px 10px;text-align:right;font-size:10px;font-weight:700;color:var(--text3)">Gain</th><th style="padding:8px 10px;text-align:right;font-size:10px;font-weight:700;color:var(--text3)">Return</th></tr>';
+  futureMonths.forEach(function(m, i) {
+    var isLast = i === futureMonths.length - 1;
+    html += '<tr style="border-bottom:1px solid var(--border)' + (isLast?';background:rgba(26,86,219,.05)':'') + '">';
+    html += '<td style="padding:8px 10px;font-weight:' + (isLast?'700':'400') + ';color:var(--text)">' + (isLast?'<strong>':'') + m.label + (isLast?'</strong>':'') + '</td>';
+    html += '<td style="padding:8px 10px;text-align:right;font-weight:700;color:var(--text)">' + sym + m.value.toLocaleString() + '</td>';
+    html += '<td style="padding:8px 10px;text-align:right;color:var(--green)">+' + sym + m.gain.toLocaleString() + '</td>';
+    html += '<td style="padding:8px 10px;text-align:right;font-weight:700;color:var(--green)">+' + m.gainPct + '%</td>';
+    html += '</tr>';
+  });
+  html += '</table></div></div>';
+
+  // Run 1-year backtest
+  html += '<div id="mp-analyser-backtest-section"><div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">📉 1-Year Historical Backtest</div>';
+  html += '<button onclick="mpAnalyserRunBacktest()" class="btn btn-ghost dark btn-sm" style="margin-bottom:12px">▶ Run 1-Year Backtest (fetches historical prices)</button>';
+  html += '<div id="mp-backtest-results"></div></div>';
+
+  // AI Analysis button
+  html += '<div style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px">';
+  html += '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">Want a deeper qualitative analysis with investment thesis, per-stock commentary and forward outlook?</div>';
+  html += '<button onclick="mpAnalyserRunAI()" class="btn btn-gold" style="width:100%;justify-content:center;padding:12px">🤖 Generate Full AI Analysis</button>';
+  html += '<div id="mp-analyser-ai-results" style="margin-top:14px"></div>';
+  html += '</div>';
+
+  // Save to My Portfolio button
+  html += '<div style="margin-top:14px"><button onclick="mpAnalyserSaveToPortfolio()" class="btn btn-gold" style="width:100%;justify-content:center;padding:12px;background:linear-gradient(135deg,#059669,#0e7490)">📈 Save to My Portfolio for Live P&L Tracking</button></div>';
+
+  resultsEl.innerHTML = html;
+  window._analyserFuture = futureMonths;
+  window._analyserSym    = sym;
+  window._analyserIsUS   = isUSPort;
+  window._analyserIsMixed = isMixed;
+}
+
+function mpAnalyserRunBacktest() {
+  var holdings = window._analyserHoldings;
+  if (!holdings || !holdings.length) return;
+  var resultsEl = document.getElementById('mp-backtest-results');
+  if (!resultsEl) return;
+  var sym = window._analyserSym || '₦';
+
+  resultsEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px">⏳ Fetching 1-year daily prices from EODHD...</div>';
+
+  var tickers = holdings.map(function(h){ return h.ticker; });
+  var serverUrl = (typeof SIGNAL_ENGINE !== 'undefined' && SIGNAL_ENGINE.SERVER_URL) ? SIGNAL_ENGINE.SERVER_URL : '';
+  if (!serverUrl) { resultsEl.innerHTML = '<div style="color:var(--red);font-size:12px">⚠️ Server not available</div>'; return; }
+
+  fetch(serverUrl + '/api/analyser/backtest', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tickers: tickers })
+  }).then(function(r){ return r.json(); }).then(function(data) {
+    if (!data.results) { resultsEl.innerHTML = '<div style="color:var(--red);font-size:12px">⚠️ No backtest data returned</div>'; return; }
+
+    // Calculate portfolio value at each month over past year
+    var monthlyValues = {};
+    var allDates = [];
+
+    holdings.forEach(function(h) {
+      var res = data.results[h.ticker];
+      if (!res || res.status !== 'ok' || !res.prices) return;
+      res.prices.forEach(function(p) {
+        var month = p.date.substring(0,7);
+        if (allDates.indexOf(month) === -1) allDates.push(month);
+        if (!monthlyValues[month]) monthlyValues[month] = 0;
+        monthlyValues[month] += p.close_price * h.qty;
+      });
+    });
+
+    allDates.sort();
+    // Sample monthly (take last trading day of each month)
+    var monthSamples = {};
+    allDates.forEach(function(month) {
+      if (monthlyValues[month]) monthSamples[month] = monthlyValues[month];
+    });
+
+    var months = Object.keys(monthSamples).sort();
+    if (months.length < 2) {
+      resultsEl.innerHTML = '<div style="color:var(--amber);font-size:12px">⚠️ Insufficient historical data for backtest. Price history may not be available for all NGX stocks.</div>';
+      return;
+    }
+
+    var startValue = monthSamples[months[0]];
+    var endValue   = monthSamples[months[months.length-1]];
+    var totalReturn = startValue > 0 ? ((endValue - startValue) / startValue * 100).toFixed(1) : 0;
+
+    var html = '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">Portfolio value over the past year · ' + months.length + ' months of data</div>';
+    html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+    html += '<tr style="background:var(--bg3)"><th style="padding:7px 10px;text-align:left;font-size:10px;font-weight:700;color:var(--text3)">Month</th><th style="padding:7px 10px;text-align:right;font-size:10px;font-weight:700;color:var(--text3)">Portfolio Value</th><th style="padding:7px 10px;text-align:right;font-size:10px;font-weight:700;color:var(--text3)">vs Start</th></tr>';
+    months.forEach(function(month, i) {
+      var val = monthSamples[month];
+      var vsStart = startValue > 0 ? ((val - startValue) / startValue * 100).toFixed(1) : 0;
+      var isLast = i === months.length - 1;
+      html += '<tr style="border-bottom:1px solid var(--border)' + (isLast?';background:rgba(26,86,219,.05)':'') + '">';
+      html += '<td style="padding:7px 10px;color:var(--text)">' + month + '</td>';
+      html += '<td style="padding:7px 10px;text-align:right;font-weight:700;color:var(--text)">' + sym + Math.round(val).toLocaleString() + '</td>';
+      html += '<td style="padding:7px 10px;text-align:right;font-weight:700;color:' + (vsStart>=0?'var(--green)':'var(--red)') + '">' + (vsStart>=0?'+':'') + vsStart + '%</td>';
+      html += '</tr>';
+    });
+    html += '</table></div>';
+    html += '<div style="margin-top:12px;padding:12px;background:var(--bg3);border-radius:8px;display:flex;justify-content:space-between;align-items:center">';
+    html += '<span style="font-size:12px;font-weight:700;color:var(--text)">1-Year Total Return</span>';
+    html += '<span style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:' + (totalReturn>=0?'var(--green)':'var(--red)') + '">' + (totalReturn>=0?'+':'') + totalReturn + '%</span>';
+    html += '</div>';
+
+    resultsEl.innerHTML = html;
+  }).catch(function(e) {
+    resultsEl.innerHTML = '<div style="color:var(--red);font-size:12px">⚠️ Backtest failed: ' + e.message + '</div>';
+  });
+}
+
+function mpAnalyserRunAI() {
+  var holdings = window._analyserHoldings;
+  if (!holdings || !holdings.length) return;
+  var aiEl = document.getElementById('mp-analyser-ai-results');
+  if (!aiEl) return;
+
+  aiEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px">🤖 Claude is analysing your portfolio...</div>';
+
+  var sym    = window._analyserSym    || '₦';
+  var future = window._analyserFuture || [];
+  var isMixed  = window._analyserIsMixed || false;
+  var isUSPort = window._analyserIsUS    || false;
+  var portfolioSummary = holdings.map(function(h){
+    return h.ticker + ' (' + h.name + '): ' + h.qty.toLocaleString() + ' shares @ ' + sym + h.purchasePrice + ', current ' + sym + h.currentPrice + ', P&L ' + (h.pnlPct>=0?'+':'') + h.pnlPct.toFixed(1) + '%, GC Score ' + h.gcScore + '% (' + h.gcPassed + '/6), Signal ' + h.aiSignal;
+  }).join('\n');
+
+  var sixMonthProjection = future.length ? 'Projected 6-month value: ' + sym + future[future.length-1].value.toLocaleString() + ' (+' + future[future.length-1].gainPct + '%)' : '';
+
+  var marketDesc = isMixed ? 'Nigerian (NGX) and US stocks mixed portfolio'
+                 : isUSPort ? 'US stock portfolio (NYSE/NASDAQ)'
+                 : 'Nigerian stock portfolio (NGX)';
+
+  var prompt = 'You are a senior equity analyst specialising in ' + marketDesc + ' using the Great Company Investment Strategy (6-factor quality framework: GP% ≥35%, EBITDA Margin ≥15%, ROE ≥20%, PE ≤20x, EV/EBITDA ≤10x, D/E ≤50% — all vs sector mean).\n\nAnalyse this uploaded portfolio:\n\n' + portfolioSummary + '\n\n' + sixMonthProjection + '\n\nProvide:\n1. Overall portfolio quality assessment (2-3 sentences)\n2. Top 2 holdings to consider exiting and why (be specific)\n3. Top 2 holdings with strongest conviction to hold and why\n4. 1 specific replacement stock to consider\n5. Key risk to monitor in the next 6 months\n\nBe concise, specific and actionable. Reference the Great Company scores in your analysis.';
+
+  var serverUrl = (typeof SIGNAL_ENGINE !== 'undefined' && SIGNAL_ENGINE.SERVER_URL) ? SIGNAL_ENGINE.SERVER_URL : '';
+  if (!serverUrl) { aiEl.innerHTML = '<div style="color:var(--red);font-size:12px">⚠️ Server not available</div>'; return; }
+
+  fetch(serverUrl + '/api/claude', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], model: 'claude-haiku-4-5-20251001', max_tokens: 800 })
+  }).then(function(r){ return r.json(); }).then(function(data) {
+    var text = '';
+    if (data.content) { data.content.forEach(function(b){ if (b.type==='text') text += b.text; }); }
+    if (!text) { aiEl.innerHTML = '<div style="color:var(--red);font-size:12px">⚠️ No AI response received</div>'; return; }
+
+    // Format the response nicely
+    var formatted = text
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/\n/g, '<br>');
+
+    aiEl.innerHTML = '<div style="background:linear-gradient(135deg,rgba(26,86,219,.06),rgba(124,58,237,.06));border:1.5px solid rgba(26,86,219,.15);border-radius:10px;padding:16px">'
+      + '<div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px">🤖 AI Analysis — Claude (Haiku)</div>'
+      + '<div style="font-size:12px;color:var(--text);line-height:1.8"><p>' + formatted + '</p></div>'
+      + '</div>';
+  }).catch(function(e) {
+    aiEl.innerHTML = '<div style="color:var(--red);font-size:12px">⚠️ AI analysis failed: ' + e.message + '</div>';
+  });
+}
+
+function mpAnalyserSaveToPortfolio() {
+  var holdings = window._analyserHoldings;
+  if (!holdings || !holdings.length) { toast('No portfolio to save', 'error'); return; }
+
+  var name = prompt('Name for this portfolio:', 'Uploaded Portfolio ' + new Date().toLocaleDateString('en-GB'));
+  if (!name || !name.trim()) return;
+
+  var portHoldings = holdings.map(function(h) {
+    return {
+      ticker:       h.ticker,
+      name:         h.name,
+      sector:       h.sector,
+      qty:          h.qty,
+      avgCost:      h.purchasePrice,
+      purchaseDate: new Date().toISOString().substring(0,10),
+      notes:        'Imported from Portfolio Analyser',
+      addedAt:      new Date().toISOString()
+    };
+  });
+
+  var newPort = {
+    id:        'port_' + Date.now(),
+    name:      name.trim(),
+    currency:  window._analyserIsUS ? 'USD' : 'NGN',
+    desc:      'Uploaded via Portfolio Analyser',
+    holdings:  portHoldings,
+    active:    false,
+    isAI:      false,
+    createdAt: new Date().toISOString()
+  };
+
+  var all = mpGetAll();
+  all.push(newPort);
+  _mpCache = all;
+
+  // Log buy events for each holding
+  portHoldings.forEach(function(h) {
+    mpLogEvent(newPort.id, {
+      ticker: h.ticker, name: h.name, sector: h.sector,
+      action: 'buy', qty: h.qty, price: h.avgCost,
+      tradeDate: h.purchaseDate, trigger: 'upload'
+    });
+  });
+
+  mpSaveAll(all);
+  toast('✓ Portfolio "' + name.trim() + '" saved to My Portfolio with ' + portHoldings.length + ' holdings', 'success');
+
+  // Close analyser and switch to portfolio view
+  window._mpSkipReload = true;
+  renderMyPortfolioModule();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// END PORTFOLIO ANALYSER
 // ══════════════════════════════════════════════════════════════════════
 </script>
 </body>
