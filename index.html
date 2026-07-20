@@ -12086,6 +12086,11 @@ function renderMyPortfolioModule() {
     var calc = mpCalcPortfolio(port);
     root.innerHTML = html;
     mpRenderDashboard(root, port, calc, all);
+    // Append analyser AFTER dashboard renders (not before early return)
+    var analyserHtml = mpBuildAnalyserHTML();
+    var analyserDiv = document.createElement('div');
+    analyserDiv.innerHTML = analyserHtml;
+    root.appendChild(analyserDiv.firstChild);
     return;
   } else if (port && (!port.holdings || !port.holdings.length)) {
     // Portfolio selected but empty
