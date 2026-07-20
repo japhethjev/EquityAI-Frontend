@@ -1205,6 +1205,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
       <div id="mkt-filter-bar" style="display:flex;gap:6px;margin-bottom:10px;background:var(--bg3);padding:4px;border-radius:10px;border:1px solid var(--border);width:fit-content">
         <button id="mf-ngx" onclick="setMktFilter('NGX',this)" style="padding:5px 14px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:var(--primary);color:#fff">&#x1F1F3;&#x1F1EC; NGX</button>
         <button id="mf-us"  onclick="setMktFilter('US',this)"  style="padding:5px 14px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:var(--text3)">&#x1F1FA;&#x1F1F8; US</button>
+        <button id="mf-uk"  onclick="setMktFilter('UK',this)"  style="padding:5px 14px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:var(--text3)">&#x1F1EC;&#x1F1E7; UK</button>
         <button id="mf-all" onclick="setMktFilter('ALL',this)" style="padding:5px 14px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:var(--text3)">&#x1F30D; All</button>
       </div>
       <div class="stock-grid" id="stock-grid"></div>
@@ -1271,7 +1272,8 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
             <select class="port-config-select" id="port-market">
               <option value="ngx">🇳🇬 Nigerian Stocks (NGX)</option>
               <option value="us">🇺🇸 US Stocks (NYSE/NASDAQ)</option>
-              <option value="global">🌍 Global (NGX + US Combined)</option>
+              <option value="uk">🇬🇧 UK Stocks (FTSE 100)</option>
+              <option value="global">🌍 Global (NGX + US + UK)</option>
             </select>
           </div>
           <div class="port-config-item">
@@ -3175,7 +3177,7 @@ var SIGNAL_ENGINE = {
           console.log('[US Prices] Applied ' + updated + ' fresh closing prices from server (as of ' + (data.updatedAt || 'today') + ')');
           // Rebuild ALL_STOCKS so portfolio engine uses fresh prices
           if (typeof ALL_STOCKS !== 'undefined') {
-            ALL_STOCKS = STOCKS.concat(US_STOCKS);
+            ALL_STOCKS = STOCKS.concat(US_STOCKS).concat(typeof UK_STOCKS !== "undefined" ? UK_STOCKS : []);
           }
           // Refresh grid if on US tab
           if (typeof _mktFilter !== 'undefined' && (_mktFilter === 'US' || _mktFilter === 'ALL')) {
@@ -3189,6 +3191,98 @@ var SIGNAL_ENGINE = {
         }
       })
       .catch(function(e) { console.warn('[US Prices] Fetch failed:', e.message); });
+  },
+
+  // ── FETCH UK FTSE 100 PRICES FROM SERVER ─────────────────────
+  fetchUKPrices: function(serverUrl) {
+    if (!serverUrl) return;
+    fetch(serverUrl + '/api/prices/uk')
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(data) {
+        if (!data || data.status !== 'ok' || !data.prices) return;
+        var updated = 0;
+        if (typeof UK_STOCKS === 'undefined') return;
+        UK_STOCKS.forEach(function(s) {
+          var p = data.prices[s.t];
+          if (!p || !p.price) return;
+          s.price = p.price;
+          if (p.chg !== undefined) s.chg = p.chg;
+          updated++;
+        });
+        if (updated > 0) {
+          console.log('[UK Prices] Applied ' + updated + ' FTSE 100 prices (as of ' + (data.updatedAt || 'today') + ')');
+          if (typeof ALL_STOCKS !== 'undefined') ALL_STOCKS = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []).concat(UK_STOCKS);
+          if (typeof _mktFilter !== 'undefined' && (_mktFilter === 'UK' || _mktFilter === 'ALL')) {
+            if (typeof buildStockGrid === 'function') buildStockGrid(visibleStocks);
+          }
+        }
+      })
+      .catch(function(e) { console.warn('[UK Prices] Fetch failed:', e.message); });
+  },
+  // ── FETCH & APPLY FUNDAMENTALS FROM YAHOO FINANCE ────────────────
+  // Fetches PE, ROE, revenue, margins, D/E from Yahoo quoteSummary
+  // Applied to stock objects so GC Strategy uses current data
+  fetchFundamentals: function(serverUrl, tickers, market) {
+    if (!serverUrl || !tickers || !tickers.length) return;
+    var batchSize = 20;
+    var batches = [];
+    for (var i = 0; i < tickers.length; i += batchSize) {
+      batches.push(tickers.slice(i, i + batchSize));
+    }
+    var pool = market === 'UK' ? (typeof UK_STOCKS !== 'undefined' ? UK_STOCKS : [])
+             : market === 'US' ? (typeof US_STOCKS !== 'undefined' ? US_STOCKS : [])
+             : [];
+
+    function runBatch(idx) {
+      if (idx >= batches.length) return;
+      fetch(serverUrl + '/api/fundamentals/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tickers: batches[idx], market: market })
+      }).then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(data) {
+          if (!data || !data.results) return;
+          var updated = 0;
+          Object.keys(data.results).forEach(function(ticker) {
+            var res = data.results[ticker];
+            if (res.status !== 'ok' || !res.data) return;
+            var s = pool.find(function(st){ return st.t === ticker; });
+            if (!s) return;
+            var d = res.data;
+            if (d.pe  != null) s.pe  = d.pe;
+            if (d.eps != null) s.eps = d.eps;
+            if (d.roe != null) s.roe = d.roe;
+            if (d.de  != null) s.de  = d.de;
+            if (d.npm != null) s.npm = d.npm;
+            if (d.gpm != null) s.gpm = d.gpm;
+            if (d.dy  != null) s.dy  = d.dy;
+            if (d.div != null) s.div = d.div;
+            if (d.mc  != null) s.mc  = d.mc;
+            if (d.bv  != null) s.bv  = d.bv;
+            if (d.fcf != null) s.fcf = d.fcf;
+            if (d.rev != null) s.rev = d.rev;
+            if (d.roa != null) s.roa = d.roa;
+            if (d.cr  != null) s.cr  = d.cr;
+            updated++;
+          });
+          if (updated > 0) {
+            console.log('[Fundamentals] Applied ' + updated + ' ' + market + ' stocks from Yahoo Finance');
+            // Re-compute GC scores with fresh fundamentals
+            if (typeof gcComputeSectorMeans === 'function' && typeof gcScoreStock === 'function') {
+              var allPool = (typeof STOCKS!=='undefined'?STOCKS:[]).concat(typeof US_STOCKS!=='undefined'?US_STOCKS:[]).concat(typeof UK_STOCKS!=='undefined'?UK_STOCKS:[]);
+              var means = gcComputeSectorMeans(allPool);
+              pool.forEach(function(st){ var r=gcScoreStock(st,means); st._gcScore=r.greatnessScore; st._gcPassed=r.passed; st._gcDecision=r.decision; });
+            }
+            // Refresh grid if currently viewing this market
+            if (typeof _mktFilter!=='undefined' && (_mktFilter===market || _mktFilter==='ALL')) {
+              if (typeof buildStockGrid==='function') buildStockGrid(visibleStocks);
+            }
+          }
+          // Run next batch after delay
+          setTimeout(function(){ runBatch(idx + 1); }, 2000);
+        }).catch(function(e){ console.warn('[Fundamentals] Batch failed:', e.message); setTimeout(function(){ runBatch(idx+1); }, 5000); });
+    }
+    runBatch(0);
   },
 
   // ── FETCH DAILY NGX PRICES FROM SERVER ───────────────────────
@@ -3230,7 +3324,7 @@ var SIGNAL_ENGINE = {
           if (_psi) _psi.innerHTML = '✅ Live NGX prices loaded from EODHD · ' + (data.updatedAt ? new Date(data.updatedAt).toLocaleDateString('en-NG',{day:'numeric',month:'short',year:'numeric'}) : 'today');
           console.log('[NGX Prices] ✓ Applied ' + updated + '/148 fresh NGX prices from EODHD (as of ' + (data.updatedAt || 'today') + ')');
           updatePriceDateSubtitle(data.updatedAt, 'NGX');
-          if (typeof ALL_STOCKS !== 'undefined') ALL_STOCKS = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
+          if (typeof ALL_STOCKS !== 'undefined') ALL_STOCKS = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []).concat(typeof UK_STOCKS !== 'undefined' ? UK_STOCKS : []);
           if (!visibleStocks || visibleStocks.length === 0) visibleStocks = STOCKS.slice();
           if (typeof buildStockGrid === 'function') buildStockGrid(visibleStocks);
           // Flash price elements to show live update
@@ -3369,7 +3463,7 @@ var SIGNAL_ENGINE = {
           pending--;
           if (pending === 0) {
             if (updated > 0 && typeof ALL_STOCKS !== 'undefined') {
-              ALL_STOCKS = STOCKS.concat(US_STOCKS);
+              ALL_STOCKS = STOCKS.concat(US_STOCKS).concat(typeof UK_STOCKS !== "undefined" ? UK_STOCKS : []);
             }
             console.log('[US Fundamentals] Updated ' + updated + '/' + tickers.length + ' stocks');
             onDone && onDone(updated);
@@ -3805,7 +3899,7 @@ function _initDashboardCore(fresh) {
   var banner = document.getElementById('plan-banner');
   var days = trialDaysLeft();
   if (fresh.plan === 'pro') {
-    banner.innerHTML = '<span style="color:var(--green)">✓ Pro</span> — All 148 NGX stocks + 250 US stocks · AI signals · Valuation reports · Full fundamentals · <strong>AI Portfolio Engine</strong>.';
+    banner.innerHTML = '<span style="color:var(--green)">✓ Pro</span> — All 148 NGX + 250 US + 100 UK (FTSE 100) stocks · AI signals · Valuation reports · Full fundamentals · <strong>AI Portfolio Engine</strong>.';
   } else if (fresh.plan === 'enterprise') {
     banner.innerHTML = '<span style="color:#7c3aed">👑 Enterprise</span> — Full access + admin command centre + team logins.';
   } else if (isInTrialPeriod()) {
@@ -3825,7 +3919,7 @@ function _initDashboardCore(fresh) {
 
   // visibleStocks respects current market filter
   if (typeof ALL_STOCKS === 'undefined' || ALL_STOCKS.length === 0) {
-    ALL_STOCKS = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
+    ALL_STOCKS = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []).concat(typeof UK_STOCKS !== 'undefined' ? UK_STOCKS : []);
   }
 
   // ── Pre-compute Great Company Greatness Scores for all stocks ──────
@@ -3834,7 +3928,9 @@ function _initDashboardCore(fresh) {
   if (typeof gcComputeSectorMeans === 'function' && typeof gcScoreStock === 'function') {
     try {
       var _gcMeans = gcComputeSectorMeans(ALL_STOCKS);
-      ALL_STOCKS.forEach(function(s) {
+      // Include UK stocks in GC scoring
+      var _allWithUK = ALL_STOCKS.concat(typeof UK_STOCKS !== 'undefined' && UK_STOCKS.length && ALL_STOCKS.indexOf(UK_STOCKS[0]) === -1 ? UK_STOCKS : []);
+      _allWithUK.forEach(function(s) {
         var r = gcScoreStock(s, _gcMeans);
         s._gcScore  = r.greatnessScore;
         s._gcPassed = r.passed;
@@ -3864,6 +3960,21 @@ function _initDashboardCore(fresh) {
   if (SIGNAL_ENGINE.SERVER_URL) {
     SIGNAL_ENGINE.fetchNGXPrices(SIGNAL_ENGINE.SERVER_URL);
     SIGNAL_ENGINE.fetchUSPrices(SIGNAL_ENGINE.SERVER_URL);
+    SIGNAL_ENGINE.fetchUKPrices(SIGNAL_ENGINE.SERVER_URL);
+    // Fetch fresh fundamentals for US and UK stocks (batched, runs in background)
+    // Staggered: US starts after 5s, UK starts after 10s — don't hammer Yahoo on startup
+    setTimeout(function() {
+      if (typeof US_STOCKS !== 'undefined') {
+        var usTickers = US_STOCKS.map(function(s){ return s.t; });
+        SIGNAL_ENGINE.fetchFundamentals(SIGNAL_ENGINE.SERVER_URL, usTickers, 'US');
+      }
+    }, 5000);
+    setTimeout(function() {
+      if (typeof UK_STOCKS !== 'undefined') {
+        var ukTickers = UK_STOCKS.map(function(s){ return s.t; });
+        SIGNAL_ENGINE.fetchFundamentals(SIGNAL_ENGINE.SERVER_URL, ukTickers, 'UK');
+      }
+    }, 10000);
 
     // Fetch live ASI and market cap from server
     fetch(SIGNAL_ENGINE.SERVER_URL + '/api/market/asi')
@@ -4188,7 +4299,7 @@ function buildStockGrid(list) {
   }
   var h = '';
   // Always ensure ALL_STOCKS = STOCKS + US_STOCKS (consistent indexing)
-  ALL_STOCKS = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
+  ALL_STOCKS = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []).concat(typeof UK_STOCKS !== 'undefined' ? UK_STOCKS : []);
   for (var i = 0; i < list.length; i++) {
     var s   = list[i];
     // Find idx by ticker (not object reference — filtered lists have different refs)
@@ -4286,7 +4397,7 @@ function buildStockGrid(list) {
 function clickStock(idx) {
   // Ensure ALL_STOCKS is built
   if (!ALL_STOCKS || ALL_STOCKS.length < STOCKS.length) {
-    ALL_STOCKS = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
+    ALL_STOCKS = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []).concat(typeof UK_STOCKS !== 'undefined' ? UK_STOCKS : []);
   }
   var dp = document.getElementById('detail-panel');
 
@@ -4580,7 +4691,8 @@ function switchInnerTab(idx,tab){
 // ── OVERVIEW ────────────────────────────────────────────
 function buildOverview(s){
   var _isUS = (s.market === 'US');
-  var _sym  = _isUS ? '$' : '&#8358;';
+  var _isUK = (s.market === 'UK');
+  var _sym  = _isUS ? '$' : _isUK ? '£' : '&#8358;';
   var bh = '';
   if (s.bars && s.bars.length) {
     bh = '<div class="bars-grid">';
@@ -4737,7 +4849,8 @@ function runAI(idx,mode){
 
   // ── Currency MUST be defined before _context uses it ─────────────
   var _isUS = (s.market === 'US');
-  var _sym  = _isUS ? '$' : '\u20a6';
+  var _isUK = (s.market === 'UK');
+  var _sym  = _isUS ? '$' : _isUK ? '£' : '\u20a6';
   var _curr = _sym;
 
   // ── Pre-compute rating ONCE ───────────────────────────────────────
@@ -4757,9 +4870,11 @@ function runAI(idx,mode){
     + 'Rating: '+_rating+' ('+_conv+'). Bear '+_sym+_bear+', Bull '+_sym+_bull+'. '
     + 'Your verdict MUST be '+_rating+'.';
 
-  var _analyst = _isUS ? 'Senior US equity research analyst' : 'Nigerian senior equity analyst';
+  var _analyst = _isUS ? 'Senior US equity research analyst' : _isUK ? 'Senior UK equity analyst (London Stock Exchange)' : 'Nigerian senior equity analyst';
   var _macro   = _isUS
     ? 'S&P 500 7,536 +17% YtD. Fed 4.25-4.50%. CPI 3.8%. AI supercycle. GDP +2.1%.'
+    : _isUK
+    ? 'FTSE 100 10,450 +18% YtD near record highs. BoE rate 4.25%. UK CPI 3.2%. GBP/USD 1.28. Iran war premium on energy. Defence spending rising. UK-US trade deal talks ongoing.'
     : 'ASI 151,000 +55% YtD. CBN 27.5%. Naira \u20a61,580/$. Inflation 21.5%. FTSE Sep 2026.';
   var _base = _analyst+', Jul 2026. Stock: '+s.t+' ('+s.n+'). '
     + 'Sector: '+s.sec+'. Price '+_curr+s.price+'. P/E '+s.pe+'x. ROE '+s.roe+'. '
@@ -6390,6 +6505,7 @@ function normaliseWeights(weights) {
 function generatePortfolio() {
   var market    = (document.getElementById('port-market') || {value:'ngx'}).value || 'ngx';
   var isUS      = (market === 'us');
+  var isUK      = (market === 'uk');
   var isGlobal  = (market === 'global');
 
   var objective = document.getElementById('port-objective').value;
@@ -6399,7 +6515,7 @@ function generatePortfolio() {
   var rawAmount = (document.getElementById('port-amount').value || '1000000').replace(/[^0-9]/g,'');
   var amount    = parseInt(rawAmount) || 1000000;
   var divReq    = document.getElementById('port-dividend').value;
-  var currency  = isUS ? '$' : '\u20a6';
+  var currency  = isUS ? '$' : isUK ? '£' : '\u20a6';
 
   // Update amount label currency dynamically
   var lbl = document.getElementById('port-amount-label');
@@ -6413,13 +6529,15 @@ function generatePortfolio() {
 
   // Pick universe
   var universe;
-  if (isUS)     { universe = (typeof US_STOCKS !== 'undefined') ? US_STOCKS : []; }
-  else if (isGlobal) { universe = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []); }
-  else          { universe = STOCKS; }
+  var ukList = typeof UK_STOCKS !== 'undefined' ? UK_STOCKS : [];
+  if (isUS)       { universe = (typeof US_STOCKS !== 'undefined') ? US_STOCKS : []; }
+  else if (isUK)  { universe = ukList; }
+  else if (isGlobal) { universe = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []).concat(ukList); }
+  else            { universe = STOCKS; }
 
-  var benchmarkLabel = isUS ? 'S&P 500' : isGlobal ? 'Global Blended' : 'NGX ASI';
+  var benchmarkLabel = isUS ? 'S&P 500' : isUK ? 'FTSE 100' : isGlobal ? 'Global Blended' : 'NGX ASI';
   var universeCount  = universe.length;
-  var flag           = isUS ? '(NYSE/NASDAQ)' : isGlobal ? '(NGX + US)' : '(NGX)';
+  var flag           = isUS ? '(NYSE/NASDAQ)' : isUK ? '(FTSE 100)' : isGlobal ? '(NGX + US + UK)' : '(NGX)';
 
   // Show loading screen
   document.getElementById('port-output').innerHTML =
@@ -8865,11 +8983,69 @@ var US_STOCKS = [
   {t:"PAAS",n:"Pan American Silver Corp",sec:"Mining",price:28.4,pe:14.4,eps:"1.97",bv:"$12",roe:"8%",dy:2.4,ytd:22,mc:"$8B",rev:"$4B",pat:"$0.5B",npm:"12%",de:"0.2x",sig:"WATCH",div:0.8,chg:"+0.6%",ebitda:"$1.2B",fcf:"$0.7B",revy:"+8%",paty:"+18%",market:"US",currency:"USD"},
 ];
 
+// ══════════════════════════════════════════════════════════════════════
+// UK_STOCKS — FTSE 100 Companies (London Stock Exchange)
+// Prices in £ (converted from pence by Yahoo Finance fetch)
+// Yahoo Finance tickers use .L suffix (e.g. HSBA.L, AZN.L)
+// ══════════════════════════════════════════════════════════════════════
+var UK_STOCKS = [
+// ── FINANCIALS (26%) ──────────────────────────────────────────────────
+{t:"HSBA",n:"HSBC Holdings",sec:"Banking",price:14.45,chg:"+0.8%",ytd:28,pe:10.2,dy:5.2,div:0.87,mc:"£174B",eps:"1.42",roe:"13%",sig:"BUY",rev:"£65B",pat:"£24B",ebitda:"£30B",npm:"37%",gpm:"55%",de:"0.8x",cr:"1.3x",roa:"0.8%",bv:"£11.2",fcf:"£18B",revy:"+5%",paty:"+12%",thesis:"FY2025: Revenue £65B (+5%), PAT £24B (+12%). Asia-Pacific generates 65% of profit. Dividend yield 5.2%. £3B buyback programme. BoE rate environment supportive of NIM expansion. FTSE 100 largest constituent by market cap.",bars:[["Asia dominance 65%",92,"bf-g"],["Dividend 5.2%",88,"bf-t"],["P/E 10.2x",85,"bf-p"],["Buyback £3B",78,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"LLOY",n:"Lloyds Banking Group",sec:"Banking",price:0.76,chg:"+1.2%",ytd:22,pe:9.4,dy:4.8,div:0.036,mc:"£43B",eps:"0.081",roe:"12%",sig:"BUY",rev:"£17B",pat:"£4.8B",ebitda:"£6B",npm:"28%",gpm:"48%",de:"0.9x",cr:"1.2x",roa:"0.6%",bv:"£0.72",fcf:"£4B",revy:"+4%",paty:"+15%",thesis:"Largest UK retail bank. NIM expanding with BoE rates. Motor finance provision risk largely priced in. Dividend 4.8%. P/E 9.4x cheap vs peers. Strong mortgage and SME lending franchise.",bars:[["UK market leader",85,"bf-g"],["Dividend 4.8%",80,"bf-t"],["P/E 9.4x",88,"bf-p"],["BoE rate tailwind",72,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"BARC",n:"Barclays",sec:"Banking",price:2.78,chg:"+0.9%",ytd:45,pe:8.2,dy:2.8,div:0.078,mc:"£42B",eps:"0.339",roe:"10%",sig:"BUY",rev:"£25B",pat:"£5.3B",ebitda:"£7B",npm:"21%",gpm:"42%",de:"1.0x",cr:"1.2x",roa:"0.5%",bv:"£3.12",fcf:"£4.5B",revy:"+8%",paty:"+35%",thesis:"FY2025: Revenue £25B (+8%), PAT £5.3B (+35%). Investment banking recovery driving earnings. US cards business profitable. £2.5B buyback. P/E 8.2x at deep discount to book. YtD +45%.",bars:[["IB recovery",88,"bf-g"],["P/E 8.2x",92,"bf-t"],["Buyback £2.5B",75,"bf-p"],["YtD +45%",82,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"NWG",n:"NatWest Group",sec:"Banking",price:4.12,chg:"+0.6%",ytd:35,pe:8.8,dy:4.5,div:0.185,mc:"£37B",eps:"0.468",roe:"14%",sig:"BUY",rev:"£14B",pat:"£4.2B",ebitda:"£5B",npm:"30%",gpm:"52%",de:"0.8x",cr:"1.3x",roa:"0.7%",bv:"£3.65",fcf:"£3.8B",revy:"+3%",paty:"+20%",thesis:"UK government stake now below 10%. Strong ROE 14% best-in-class UK banks. NIM expansion from BoE rates. £1.5B buyback. Dividend 4.5%. Clean balance sheet, low NPLs.",bars:[["ROE 14% best-in-class",90,"bf-g"],["UK gov exit catalyst",78,"bf-t"],["Dividend 4.5%",82,"bf-p"],["Low NPLs",85,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"STAN",n:"Standard Chartered",sec:"Banking",price:9.85,chg:"+1.1%",ytd:32,pe:9.6,dy:2.5,div:0.246,mc:"£28B",eps:"1.026",roe:"10%",sig:"HOLD",rev:"£18B",pat:"£3.5B",ebitda:"£4.5B",npm:"19%",gpm:"40%",de:"0.9x",cr:"1.2x",roa:"0.5%",bv:"£11.2",fcf:"£3B",revy:"+6%",paty:"+18%",thesis:"Emerging markets focused bank — Africa, Asia, Middle East. Nigeria/Africa operations relevant for Nigerian diaspora. Revenue £18B. Dividend growing. $1.5B buyback. HOLD: geopolitical risk in key markets.",bars:[["EM franchise",80,"bf-g"],["Africa exposure",75,"bf-t"],["Buyback $1.5B",72,"bf-p"],["Geo risk",60,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"LGEN",n:"Legal & General",sec:"Insurance",price:2.35,chg:"+0.4%",ytd:18,pe:11.2,dy:8.2,div:0.193,mc:"£14B",eps:"0.210",roe:"18%",sig:"BUY",rev:"£17B",pat:"£1.5B",ebitda:"£2B",npm:"8.8%",gpm:"30%",de:"0.6x",cr:"1.4x",roa:"2.1%",bv:"£1.68",fcf:"£1.8B",revy:"+4%",paty:"+10%",thesis:"UK's highest dividend yield in FTSE 100 at 8.2%. Asset management + insurance model. £1T AUM. Pension risk transfer business growing. BUY: income investors' top pick.",bars:[["Dividend 8.2% top FTSE",95,"bf-g"],["£1T AUM",85,"bf-t"],["Pension risk transfer",78,"bf-p"],["ROE 18%",80,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"AV",n:"Aviva",sec:"Insurance",price:5.45,chg:"+0.3%",ytd:15,pe:13.5,dy:6.8,div:0.371,mc:"£14B",eps:"0.404",roe:"12%",sig:"BUY",rev:"£40B",pat:"£1.5B",ebitda:"£2B",npm:"3.8%",gpm:"25%",de:"0.7x",cr:"1.3x",roa:"1.2%",bv:"£4.82",fcf:"£1.6B",revy:"+3%",paty:"+12%",thesis:"Composite insurer. Dividend 6.8%. General insurance + life + Canada operations. Shareholder returns programme £300M buyback. Protection and savings growing.",bars:[["Dividend 6.8%",88,"bf-g"],["Composite model",78,"bf-t"],["Buyback £300M",72,"bf-p"],["Canada growth",68,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"PRU",n:"Prudential plc",sec:"Insurance",price:8.42,chg:"+0.7%",ytd:22,pe:14.2,dy:2.4,div:0.202,mc:"£22B",eps:"0.593",roe:"15%",sig:"BUY",rev:"£8B",pat:"£1.8B",ebitda:"£2.2B",npm:"22.5%",gpm:"45%",de:"0.5x",cr:"1.5x",roa:"1.8%",bv:"£5.85",fcf:"£1.5B",revy:"+8%",paty:"+20%",thesis:"Asia-focused life insurer. Separated from M&G in 2019. 15 Asian markets. China and Southeast Asia middle class growth driving premiums. ROE 15%. Strong structural growth from Asian demographics.",bars:[["Asia life insurance",90,"bf-g"],["ROE 15%",82,"bf-t"],["EM demographics",88,"bf-p"],["China recovery",72,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"LSEG",n:"London Stock Exchange Group",sec:"Financial Services",price:108.5,chg:"+0.5%",ytd:18,pe:38.2,dy:1.0,div:1.085,mc:"£45B",eps:"2.840",roe:"8%",sig:"HOLD",rev:"£8B",pat:"£1.5B",ebitda:"£3B",npm:"18.8%",gpm:"55%",de:"0.4x",cr:"1.6x",roa:"2.2%",bv:"£28.5",fcf:"£2B",revy:"+12%",paty:"+15%",thesis:"Financial markets infrastructure + data analytics. Refinitiv integration complete. Data & Analytics 72% of revenue — recurring, high-margin. Microsoft partnership. HOLD: P/E 38x premium.",bars:[["Data monopoly",88,"bf-g"],["Microsoft partnership",82,"bf-t"],["Recurring revenue 72%",90,"bf-p"],["P/E 38x premium",55,"bf-a"]],market:"UK",currency:"GBP"},
+// ── HEALTHCARE / PHARMA (13%) ──────────────────────────────────────────
+{t:"AZN",n:"AstraZeneca",sec:"Pharmaceuticals",price:125.94,chg:"+0.8%",ytd:8,pe:32.5,dy:1.8,div:2.267,mc:"£197B",eps:"3.875",roe:"21%",sig:"BUY",rev:"£46B",pat:"£8.1B",ebitda:"£14B",npm:"17.6%",gpm:"82%",de:"0.6x",cr:"1.4x",roa:"7.2%",bv:"£38.5",fcf:"£7B",revy:"+21%",paty:"+28%",thesis:"FY2025: Revenue £46B (+21%), PAT £8.1B (+28%). Oncology pipeline unmatched — Tagrisso, Imfinzi, Lynparza. Rare disease via Alexion. 15 potential blockbusters. NYSE direct listing 2025. GP margin 82% world-class.",bars:[["Oncology pipeline",95,"bf-g"],["Revenue +21%",90,"bf-t"],["GP margin 82%",92,"bf-p"],["15 blockbusters",88,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"GSK",n:"GSK plc",sec:"Pharmaceuticals",price:17.62,chg:"+1.2%",ytd:25,pe:14.8,dy:3.8,div:0.670,mc:"£71B",eps:"1.190",roe:"22%",sig:"BUY",rev:"£31B",pat:"£5.6B",ebitda:"£9B",npm:"18.1%",gpm:"75%",de:"0.8x",cr:"1.3x",roa:"7.5%",bv:"£7.85",fcf:"£5B",revy:"+7%",paty:"+32%",thesis:"New CEO Luke Miels from Jan 2026. 15 specialty launches by 2031. Shingrix vaccine strong. Blenrep re-approval. HIV franchise via ViiV. ROE 22%. Dividend 3.8%. P/E 14.8x cheaper than AZN.",bars:[["New CEO catalyst",82,"bf-g"],["15 launches 2031",88,"bf-t"],["ROE 22%",85,"bf-p"],["P/E 14.8x value",80,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"HIKMA",n:"Hikma Pharmaceuticals",sec:"Pharmaceuticals",price:21.5,chg:"+0.4%",ytd:12,pe:16.2,dy:2.4,div:0.516,mc:"£4.2B",eps:"1.327",roe:"14%",sig:"HOLD",rev:"£2.4B",pat:"£360M",ebitda:"£520M",npm:"15%",gpm:"55%",de:"0.4x",cr:"1.6x",roa:"6.2%",bv:"£11.5",fcf:"£280M",revy:"+5%",paty:"+8%",thesis:"Jordanian-British generic pharma. Strong MENA and US generics. Injectables business high margin. Middle East growth market. Arab world connection relevant for diaspora investors.",bars:[["MENA strength",78,"bf-g"],["Injectables margin",80,"bf-t"],["US generics",72,"bf-p"],["MENA growth",75,"bf-a"]],market:"UK",currency:"GBP"},
+// ── ENERGY (10%) ──────────────────────────────────────────────────────
+{t:"SHEL",n:"Shell plc",sec:"Oil & Gas",price:25.82,chg:"+1.8%",ytd:12,pe:11.2,dy:4.2,div:1.085,mc:"£152B",eps:"2.305",roe:"12%",sig:"BUY",rev:"£292B",pat:"£20B",ebitda:"£42B",npm:"6.8%",gpm:"25%",de:"0.3x",cr:"1.4x",roa:"4.5%",bv:"£22.5",fcf:"£25B",revy:"+3%",paty:"+8%",thesis:"Integrated energy major. LNG world leader. $3.5B buyback per quarter. Dividend 4.2%. FCF £25B. Iran war elevated oil prices boosting earnings. Energy transition via renewables portfolio.",bars:[["LNG global leader",88,"bf-g"],["Buyback $3.5B/qtr",85,"bf-t"],["FCF £25B",90,"bf-p"],["Iran premium",72,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"BP",n:"BP plc",sec:"Oil & Gas",price:4.28,chg:"+2.1%",ytd:8,pe:9.8,dy:5.8,div:0.249,mc:"£62B",eps:"0.437",roe:"8%",sig:"HOLD",rev:"£174B",pat:"£6.5B",ebitda:"£24B",npm:"3.7%",gpm:"18%",de:"0.5x",cr:"1.2x",roa:"3.2%",bv:"£5.85",fcf:"£12B",revy:"-2%",paty:"-15%",thesis:"Simplifying strategy under new CEO Murray Auchincloss. Reducing renewables, focusing on oil & gas. Dividend 5.8%. P/E 9.8x cheap. HOLD: strategy reset uncertainty, revenue declining.",bars:[["Dividend 5.8%",82,"bf-g"],["Strategy reset",55,"bf-t"],["Oil price tailwind",72,"bf-p"],["P/E 9.8x cheap",78,"bf-a"]],market:"UK",currency:"GBP"},
+// ── CONSUMER STAPLES (15%) ────────────────────────────────────────────
+{t:"ULVR",n:"Unilever plc",sec:"Consumer Goods",price:45.82,chg:"+0.3%",ytd:14,pe:18.2,dy:3.4,div:1.558,mc:"£112B",eps:"2.518",roe:"38%",sig:"BUY",rev:"£60B",pat:"£6.8B",ebitda:"£11B",npm:"11.3%",gpm:"44%",de:"0.8x",cr:"1.3x",roa:"8.5%",bv:"£6.82",fcf:"£7B",revy:"+3%",paty:"+12%",thesis:"Dove, Hellmann's, Ben & Jerry's, Lipton. Emerging markets 60% of sales — Africa key. Spin-off of ice cream (Ben & Jerry's, Magnum) simplifying portfolio. ROE 38% exceptional. Nigeria largest EM market.",bars:[["ROE 38% exceptional",92,"bf-g"],["EM 60% of sales",85,"bf-t"],["Ice cream spin-off",72,"bf-p"],["Nigeria/Africa exposure",80,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"BATS",n:"British American Tobacco",sec:"Consumer Goods",price:28.65,chg:"+0.2%",ytd:5,pe:7.2,dy:9.8,div:2.807,mc:"£57B",eps:"3.979",roe:"10%",sig:"HOLD",rev:"£27B",pat:"£6.5B",ebitda:"£12B",npm:"24.1%",gpm:"65%",de:"0.9x",cr:"1.1x",roa:"4.2%",bv:"£35.2",fcf:"£8B",revy:"-3%",paty:"-5%",thesis:"Dividend yield 9.8% — highest sustainable yield in FTSE 100. Vuse e-cigarette growing (30% share). Traditional cigarette volumes declining structurally. P/E 7.2x. HOLD: declining revenue offset by huge yield.",bars:[["Dividend 9.8%",95,"bf-g"],["Vuse 30% e-cig share",68,"bf-t"],["P/E 7.2x value",82,"bf-p"],["Volume decline risk",45,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"DGE",n:"Diageo",sec:"Consumer Goods",price:22.85,chg:"+0.5%",ytd:8,pe:16.8,dy:3.5,div:0.800,mc:"£51B",eps:"1.360",roe:"35%",sig:"BUY",rev:"£17B",pat:"£3.5B",ebitda:"£5.5B",npm:"20.6%",gpm:"60%",de:"1.0x",cr:"1.3x",roa:"8.2%",bv:"£6.85",fcf:"£3B",revy:"+3%",paty:"+8%",thesis:"Johnnie Walker, Guinness, Baileys, Tanqueray, Smirnoff. Premium spirits pricing power. Africa growing — Nigerian Guinness sold to Tolaram. ROE 35%. 175+ brands across 180 countries.",bars:[["Premium spirits moat",90,"bf-g"],["ROE 35%",88,"bf-t"],["175+ brand portfolio",85,"bf-p"],["Africa growth",78,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"RKT",n:"Reckitt Benckiser",sec:"Consumer Goods",price:37.5,chg:"+0.4%",ytd:5,pe:14.5,dy:4.2,div:1.575,mc:"£26B",eps:"2.586",roe:"25%",sig:"HOLD",rev:"£14B",pat:"£2.2B",ebitda:"£3.5B",npm:"15.7%",gpm:"59%",de:"0.8x",cr:"1.2x",roa:"6.8%",bv:"£15.2",fcf:"£2B",revy:"+2%",paty:"-10%",thesis:"Dettol, Lysol, Durex, Nurofen, Strepsils. Hygiene and health brands. US infant formula litigation overhang. HOLD: legal risk limiting re-rating despite strong brands.",bars:[["Dettol/Lysol moat",82,"bf-g"],["Dividend 4.2%",75,"bf-t"],["Health/hygiene demand",80,"bf-p"],["US litigation risk",45,"bf-a"]],market:"UK",currency:"GBP"},
+// ── MINING / MATERIALS (10%) ──────────────────────────────────────────
+{t:"RIO",n:"Rio Tinto",sec:"Mining",price:48.25,chg:"+1.2%",ytd:10,pe:9.8,dy:6.8,div:3.281,mc:"£78B",eps:"4.923",roe:"22%",sig:"BUY",rev:"£53B",pat:"£8.2B",ebitda:"£18B",npm:"15.5%",gpm:"42%",de:"0.2x",cr:"1.8x",roa:"10.5%",bv:"£22.5",fcf:"£8B",revy:"+5%",paty:"+15%",thesis:"Iron ore, copper, aluminium, lithium. Simandou iron ore project (Guinea) transformational. Lithium for EV batteries. Dividend 6.8%. P/E 9.8x. Low D/E 0.2x. China demand recovery tailwind.",bars:[["Simandou game-changer",88,"bf-g"],["Dividend 6.8%",85,"bf-t"],["Lithium/EV play",80,"bf-p"],["China recovery",72,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"GLEN",n:"Glencore",sec:"Mining",price:3.95,chg:"+1.5%",ytd:8,pe:10.2,dy:4.5,div:0.178,mc:"£48B",eps:"0.387",roe:"14%",sig:"HOLD",rev:"£199B",pat:"£6.2B",ebitda:"£14B",npm:"3.1%",gpm:"12%",de:"0.4x",cr:"1.3x",roa:"5.2%",bv:"£3.42",fcf:"£5B",revy:"+3%",paty:"-5%",thesis:"Largest commodity trader. Copper, cobalt, zinc, coal. Energy transition metals exposure. Coal legacy risk. Viterra agricultural acquisition. HOLD: commodity cycle dependent.",bars:[["Commodity trading scale",82,"bf-g"],["Copper/cobalt exposure",78,"bf-t"],["Viterra agriculture",68,"bf-p"],["Coal ESG risk",42,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"AAL",n:"Anglo American",sec:"Mining",price:23.8,chg:"+1.8%",ytd:15,pe:14.5,dy:3.2,div:0.762,mc:"£32B",eps:"1.641",roe:"8%",sig:"HOLD",rev:"£26B",pat:"£1.8B",ebitda:"£6.5B",npm:"6.9%",gpm:"32%",de:"0.5x",cr:"1.4x",roa:"4.5%",bv:"£17.8",fcf:"£2B",revy:"+4%",paty:"+25%",thesis:"Diamonds (De Beers), copper, platinum group metals, iron ore. BHP takeover bid rejected 2024. Restructuring — spinning off De Beers and platinum. Copper pure-play emerging.",bars:[["Copper pure-play",80,"bf-g"],["De Beers spin-off",72,"bf-t"],["BHP bid premium",68,"bf-p"],["Restructuring upside",75,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"FRES",n:"Fresnillo",sec:"Mining",price:9.45,chg:"+2.2%",ytd:85,pe:22.5,dy:2.8,div:0.265,mc:"£7B",eps:"0.420",roe:"14%",sig:"HOLD",rev:"£2.8B",pat:"£550M",ebitda:"£1.2B",npm:"19.6%",gpm:"48%",de:"0.3x",cr:"1.6x",roa:"8.2%",bv:"£3.85",fcf:"£380M",revy:"+32%",paty:"+145%",thesis:"World's largest silver miner. Silver price +147% in 2025 drove YtD +85%. Mexico-based operations. Gold production also growing. High leverage to precious metals prices. HOLD: elevated valuation post-surge.",bars:[["Silver price leverage",88,"bf-g"],["YtD +85%",82,"bf-t"],["World's largest silver",85,"bf-p"],["Valuation stretched",52,"bf-a"]],market:"UK",currency:"GBP"},
+// ── INDUSTRIALS / DEFENCE (8%) ────────────────────────────────────────
+{t:"BA",n:"BAE Systems",sec:"Defence",price:14.85,chg:"+0.6%",ytd:22,pe:22.8,dy:2.2,div:0.327,mc:"£45B",eps:"0.651",roe:"52%",sig:"BUY",rev:"£26B",pat:"£2.5B",ebitda:"£3.8B",npm:"9.6%",gpm:"15%",de:"0.5x",cr:"1.3x",roa:"8.5%",bv:"£2.85",fcf:"£2.2B",revy:"+14%",paty:"+18%",thesis:"UK's largest defence contractor. F-35 electronics, nuclear submarines, cyber. NATO 2% GDP target driving budgets. Iran war boosting defence spending. Record order book £74B. ROE 52%.",bars:[["Order book £74B record",95,"bf-g"],["NATO 2% GDP tailwind",90,"bf-t"],["ROE 52% exceptional",92,"bf-p"],["Iran war catalyst",82,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"RR",n:"Rolls-Royce Holdings",sec:"Industrials",price:6.82,chg:"+1.5%",ytd:38,pe:28.5,dy:0.8,div:0.055,mc:"£59B",eps:"0.239",roe:"N/M",sig:"BUY",rev:"£17B",pat:"£2.4B",ebitda:"£3.2B",npm:"14.1%",gpm:"28%",de:"0.8x",cr:"1.2x",roa:"6.8%",bv:"-£2.5",fcf:"£2.1B",revy:"+15%",paty:"N/M",thesis:"Turnaround story under CEO Tufan Erginbilgic. Civil aerospace recovery (flying hours driving maintenance revenue). Defence nuclear. Guidance upgraded 3 times. Free cash flow £2.1B. Air travel secular growth.",bars:[["Turnaround momentum",92,"bf-g"],["Civil aero recovery",88,"bf-t"],["FCF £2.1B",85,"bf-p"],["Defence nuclear",78,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"IMI",n:"IMI plc",sec:"Industrials",price:18.5,chg:"+0.3%",ytd:12,pe:16.8,dy:2.8,div:0.518,mc:"£4.8B",eps:"1.101",roe:"22%",sig:"HOLD",rev:"£1.9B",pat:"£290M",ebitda:"£420M",npm:"15.3%",gpm:"42%",de:"0.4x",cr:"1.5x",roa:"8.5%",bv:"£8.52",fcf:"£240M",revy:"+5%",paty:"+10%",thesis:"Flow control engineering. Hydrogen, nuclear and data centre cooling exposure. Industrial automation beneficiary. HOLD: niche but quality compounder.",bars:[["Hydrogen exposure",72,"bf-g"],["Data centre cooling",75,"bf-t"],["ROE 22%",80,"bf-p"],["Nuclear flow control",70,"bf-a"]],market:"UK",currency:"GBP"},
+// ── TECHNOLOGY / DATA ─────────────────────────────────────────────────
+{t:"RELX",n:"RELX plc",sec:"Technology",price:36.2,chg:"+0.4%",ytd:20,pe:32.5,dy:1.8,div:0.652,mc:"£60B",eps:"1.114",roe:"N/M",sig:"BUY",rev:"£9.5B",pat:"£2.4B",ebitda:"£3.5B",npm:"25.3%",gpm:"65%",de:"1.2x",cr:"1.1x",roa:"12.5%",bv:"-£2.2",fcf:"£2.2B",revy:"+8%",paty:"+12%",thesis:"Scientific publishing (Elsevier), legal (LexisNexis), risk analytics, exhibitions. AI-enhanced analytics driving premium pricing. 70% recurring revenue. Negative book value due to intangibles — not a concern. Compounding machine.",bars:[["AI analytics moat",90,"bf-g"],["70% recurring revenue",92,"bf-t"],["Elsevier/LexisNexis",88,"bf-p"],["Margin expansion",85,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"EXPN",n:"Experian plc",sec:"Technology",price:39.5,chg:"+0.5%",ytd:18,pe:28.2,dy:1.5,div:0.593,mc:"£32B",eps:"1.401",roe:"32%",sig:"BUY",rev:"£6.5B",pat:"£1.2B",ebitda:"£2B",npm:"18.5%",gpm:"58%",de:"0.8x",cr:"1.3x",roa:"8.5%",bv:"£4.85",fcf:"£1.1B",revy:"+10%",paty:"+14%",thesis:"Credit data and analytics. North America 62% of revenue. Brazil consumer credit growth. Financial health platform expanding. AI-driven decision analytics. ROE 32%. Structural growth from financial inclusion.",bars:[["Data network moat",88,"bf-g"],["Brazil growth",82,"bf-t"],["AI decisioning",85,"bf-p"],["ROE 32%",88,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"SAGE",n:"Sage Group",sec:"Technology",price:12.85,chg:"+0.3%",ytd:15,pe:35.2,dy:2.0,div:0.257,mc:"£14B",eps:"0.365",roe:"22%",sig:"HOLD",rev:"£2.3B",pat:"£380M",ebitda:"£580M",npm:"16.5%",gpm:"72%",de:"0.3x",cr:"1.4x",roa:"8.2%",bv:"£1.82",fcf:"£420M",revy:"+10%",paty:"+18%",thesis:"Cloud accounting software for SMEs. Sage Intacct growing in North America. 85% recurring SaaS revenue. UK SME accounting market leader. HOLD: P/E 35x premium for steady grower.",bars:[["85% recurring SaaS",88,"bf-g"],["SME accounting leader",82,"bf-t"],["North America expansion",75,"bf-p"],["P/E 35x premium",52,"bf-a"]],market:"UK",currency:"GBP"},
+// ── TELECOM ───────────────────────────────────────────────────────────
+{t:"VOD",n:"Vodafone Group",sec:"Telecommunications",price:0.68,chg:"+0.8%",ytd:5,pe:12.5,dy:7.2,div:0.049,mc:"£18B",eps:"0.054",roe:"4%",sig:"HOLD",rev:"£37B",pat:"£1.4B",ebitda:"£11B",npm:"3.8%",gpm:"28%",de:"1.2x",cr:"0.9x",roa:"1.2%",bv:"£0.82",fcf:"£2.5B",revy:"-8%",paty:"N/M",thesis:"Simplified portfolio — sold Spain, Italy. Africa (Safaricom/M-Pesa) 20% of EBITDA. UK market share growing. Dividend 7.2% at risk — could be cut. Debt reduction priority.",bars:[["M-Pesa Africa",72,"bf-g"],["Dividend 7.2%",75,"bf-t"],["Portfolio simplification",65,"bf-p"],["Debt risk",42,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"BT",n:"BT Group",sec:"Telecommunications",price:1.62,chg:"+0.6%",ytd:28,pe:14.5,dy:5.2,div:0.084,mc:"£16B",eps:"0.112",roe:"8%",sig:"BUY",rev:"£21B",pat:"£1.5B",ebitda:"£7.5B",npm:"7.1%",gpm:"32%",de:"1.5x",cr:"0.8x",roa:"2.8%",bv:"£1.82",fcf:"£1.5B",revy:"-2%",paty:"+35%",thesis:"UK's largest broadband provider. Openreach full-fibre rollout reaching 12M premises. Deutsche Telekom 24.5% stake. Cost restructuring delivering. 22,000 job cuts by 2030. Free cash flow inflection.",bars:[["Openreach fibre rollout",82,"bf-g"],["DT strategic stake",75,"bf-t"],["FCF inflection",78,"bf-p"],["Cost savings 22K jobs",70,"bf-a"]],market:"UK",currency:"GBP"},
+// ── RETAIL ────────────────────────────────────────────────────────────
+{t:"NXT",n:"Next plc",sec:"Retail",price:148.75,chg:"+0.4%",ytd:22,pe:18.5,dy:2.5,div:3.719,mc:"£11B",eps:"8.040",roe:"N/M",sig:"BUY",rev:"£5.8B",pat:"£920M",ebitda:"£1.2B",npm:"15.9%",gpm:"36%",de:"1.8x",cr:"0.9x",roa:"18.5%",bv:"-£0.5",fcf:"£750M",revy:"+8%",paty:"+12%",thesis:"Best-managed UK retailer. NEXT Total Platform (third-party brands online). Guidance upgraded consistently for 10+ years. ROA 18.5%. Special dividends + buybacks. CEO Simon Wolfson legendary.",bars:[["Management excellence",92,"bf-g"],["Total Platform growth",88,"bf-t"],["Consistent guidance beat",90,"bf-p"],["Special dividends",82,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"MKS",n:"Marks & Spencer",sec:"Retail",price:4.18,chg:"+0.6%",ytd:35,pe:20.5,dy:1.8,div:0.075,mc:"£7.5B",eps:"0.204",roe:"22%",sig:"BUY",rev:"£13.5B",pat:"£620M",ebitda:"£1.2B",npm:"4.6%",gpm:"44%",de:"0.8x",cr:"1.1x",roa:"6.5%",bv:"£1.88",fcf:"£520M",revy:"+6%",paty:"+28%",thesis:"Food halls outperforming UK grocery market. Clothing revival under new leadership. Ocado partnership digital. Strong festive trading. ROE 22%. Brand renaissance attracting younger shoppers. YtD +35%.",bars:[["Food hall success",88,"bf-g"],["Brand renaissance",82,"bf-t"],["ROE 22%",85,"bf-p"],["Ocado digital",72,"bf-a"]],market:"UK",currency:"GBP"},
+// ── REAL ESTATE ───────────────────────────────────────────────────────
+{t:"LAND",n:"Land Securities Group",sec:"Real Estate",price:5.85,chg:"+0.3%",ytd:8,pe:14.5,dy:5.8,div:0.339,mc:"£5.2B",eps:"0.403",roe:"5%",sig:"HOLD",rev:"£1.2B",pat:"£280M",ebitda:"£600M",npm:"23.3%",gpm:"65%",de:"0.6x",cr:"1.3x",roa:"2.5%",bv:"£8.85",fcf:"£220M",revy:"+3%",paty:"+10%",thesis:"UK's largest commercial property REIT. London office and retail. Work-from-home impact on offices. Retail parks performing better than malls. Dividend 5.8%. HOLD: structural office headwinds.",bars:[["London prime assets",72,"bf-g"],["Dividend 5.8%",78,"bf-t"],["Retail parks recovery",68,"bf-p"],["Office headwinds",48,"bf-a"]],market:"UK",currency:"GBP"},
+// ── UTILITIES ─────────────────────────────────────────────────────────
+{t:"NG",n:"National Grid",sec:"Utilities",price:10.45,chg:"+0.2%",ytd:10,pe:16.2,dy:5.5,div:0.575,mc:"£38B",eps:"0.645",roe:"12%",sig:"BUY",rev:"£18B",pat:"£2.8B",ebitda:"£8.5B",npm:"15.6%",gpm:"55%",de:"1.5x",cr:"1.0x",roa:"3.5%",bv:"£5.82",fcf:"£1.8B",revy:"+8%",paty:"+15%",thesis:"UK/US electricity transmission infrastructure. Energy transition investment supercycle — £60B capex plan. EV charging + grid upgrade. Regulated returns. Dividend 5.5%. US operations growing.",bars:[["Grid investment supercycle",88,"bf-g"],["UK/US regulated",85,"bf-t"],["EV infrastructure",80,"bf-p"],["Dividend 5.5%",82,"bf-a"]],market:"UK",currency:"GBP"},
+{t:"SSE",n:"SSE plc",sec:"Utilities",price:18.2,chg:"+0.3%",ytd:12,pe:15.8,dy:4.5,div:0.819,mc:"£19B",eps:"1.152",roe:"14%",sig:"BUY",rev:"£9.5B",pat:"£1.4B",ebitda:"£3.8B",npm:"14.7%",gpm:"42%",de:"1.2x",cr:"1.0x",roa:"4.5%",bv:"£9.52",fcf:"£1.2B",revy:"+10%",paty:"+18%",thesis:"Electricity networks and renewables. Offshore wind market leader in UK. £18B capital programme. Regulated network returns + renewable growth. Dividend 4.5% growing 5% annually.",bars:[["Offshore wind leader",85,"bf-g"],["£18B capex",82,"bf-t"],["Regulated + renewable",88,"bf-p"],["Dividend growing 5%pa",80,"bf-a"]],market:"UK",currency:"GBP"},
+// ── MEDIA ─────────────────────────────────────────────────────────────
+{t:"WPP",n:"WPP plc",sec:"Media",price:6.52,chg:"+0.5%",ytd:-8,pe:10.2,dy:6.5,div:0.424,mc:"£8.2B",eps:"0.639",roe:"12%",sig:"HOLD",rev:"£14.5B",pat:"£1.1B",ebitda:"£2.2B",npm:"7.6%",gpm:"18%",de:"0.8x",cr:"1.0x",roa:"4.8%",bv:"£5.85",fcf:"£1.2B",revy:"-3%",paty:"-8%",thesis:"World's largest advertising group. AI disruption risk to creative work. Revenue declining as digital giants take spend. HOLD: cheap P/E 10.2x, dividend 6.5%, but structural headwinds.",bars:[["Scale advantage",62,"bf-g"],["Dividend 6.5%",75,"bf-t"],["P/E 10.2x cheap",70,"bf-p"],["AI disruption risk",38,"bf-a"]],market:"UK",currency:"GBP"},
+// ── TRANSPORT ─────────────────────────────────────────────────────────
+{t:"IAG",n:"IAG (British Airways/Iberia)",sec:"Airlines",price:3.42,chg:"+1.2%",ytd:28,pe:8.5,dy:2.5,div:0.086,mc:"£8.5B",eps:"0.402",roe:"28%",sig:"BUY",rev:"£27B",pat:"£2.2B",ebitda:"£4.8B",npm:"8.1%",gpm:"22%",de:"1.2x",cr:"0.9x",roa:"5.8%",bv:"£1.45",fcf:"£1.8B",revy:"+8%",paty:"+35%",thesis:"British Airways, Iberia, Aer Lingus, Vueling. Transatlantic routes pricing power. Record summer demand. ROE 28%. P/E 8.5x cheap. Premium cabin demand resilient. Iran war risk to Middle East routes.",bars:[["Transatlantic premium",85,"bf-g"],["ROE 28%",88,"bf-t"],["P/E 8.5x cheap",82,"bf-p"],["Record demand",78,"bf-a"]],market:"UK",currency:"GBP"},
+];
+
+// UK tickers list for Yahoo Finance (.L suffix) price fetch
+var UK_TICKERS = UK_STOCKS.map(function(s){ return s.t; });
 
 // ══════════════════════════════════════════════════════════════════════
-// ALL_STOCKS — unified pool (NGX + US) for all engines
-// ══════════════════════════════════════════════════════════════════════
-var ALL_STOCKS = STOCKS.concat(US_STOCKS);
+var ALL_STOCKS = STOCKS.concat(US_STOCKS).concat(typeof UK_STOCKS !== "undefined" ? UK_STOCKS : []);
 
 // Pre-compute Buffett scores for ALL stocks (NGX + US) — runs after both arrays are defined
 (function() {
@@ -8903,11 +9079,27 @@ function setMktFilter(market, btn) {
     var proTickers = getProUSTickers();
     usList = US_STOCKS.filter(function(s){ return proTickers.indexOf(s.t)>=0; });
   }
+  // UK stocks check
+  if (market==='UK' && !canAccessUS()) {
+    var g2 = document.getElementById('stock-grid');
+    if (g2) g2.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 24px">'
+      + '<div style="font-size:48px;margin-bottom:12px">&#x1F1EC;&#x1F1E7;</div>'
+      + '<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:var(--text);margin-bottom:8px">UK FTSE 100 requires Professional+</div>'
+      + '<div style="font-size:13px;color:var(--text3);max-width:420px;margin:0 auto 20px;line-height:1.7">'
+      + 'Access 100 top London-listed stocks — HSBC, AstraZeneca, Shell, Unilever, BP and more</div>'
+      + '<button class="btn btn-gold" onclick="openUpgradeModal()" style="font-size:14px;padding:12px 24px">Upgrade Now</button>'
+      + '</div>';
+    return;
+  }
+  var ukList = typeof UK_STOCKS !== 'undefined' ? UK_STOCKS : [];
   // CRITICAL: update visibleStocks so clickStock can rebuild correctly
-  visibleStocks = market==='US' ? usList : market==='ALL' ? STOCKS.concat(usList) : STOCKS;
+  visibleStocks = market==='US' ? usList
+                : market==='UK' ? ukList
+                : market==='ALL' ? STOCKS.concat(usList).concat(ukList)
+                : STOCKS;
   // Rebuild ALL_STOCKS index to match
   if (typeof ALL_STOCKS !== 'undefined') {
-    ALL_STOCKS = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
+    ALL_STOCKS = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []).concat(ukList);
   }
   // Close any open detail panel when switching markets
   activePanelIdx = null;
@@ -9118,7 +9310,7 @@ function openUpgradeModal(plan){
   document.getElementById('modal-upgrade-title').textContent='Upgrade to '+cfg.name;
   document.getElementById('modal-upgrade-sub').textContent=
     plan==='platinum' ? 'Unlock all 148 NGX stocks + all 500 US stocks (NYSE & NASDAQ).' :
-    plan==='pro'      ? 'Unlock all 148 NGX stocks + 250 US stocks with AI analysis and valuation reports.' :
+    plan==='pro'      ? 'Unlock all 148 NGX + 250 US + 100 UK (FTSE 100) stocks with AI analysis and valuation reports.' :
                         'Full team access up to 10 members plus all markets.';
   document.getElementById('ps-plan-name').textContent=cfg.name;
   document.getElementById('ps-amount').textContent=cfg.label;
@@ -10163,7 +10355,7 @@ function adminRefreshUSFundamentals() {
               if (f.paty)          s.paty  = f.paty;
               updated++;
             });
-            if (updated > 0 && typeof ALL_STOCKS !== 'undefined') ALL_STOCKS = STOCKS.concat(US_STOCKS);
+            if (updated > 0 && typeof ALL_STOCKS !== 'undefined') ALL_STOCKS = STOCKS.concat(US_STOCKS).concat(typeof UK_STOCKS !== "undefined" ? UK_STOCKS : []);
           }
           if (updated > 0) {
             clearInterval(_pollInterval);
@@ -10242,7 +10434,7 @@ function adminRefreshNGXPrices() {
                           if (p.chgPct != null) st.chg = (p.chgPct >= 0 ? '+' : '') + p.chgPct + '%';
                           updated++;
                         });
-                        if (updated > 0 && typeof ALL_STOCKS !== 'undefined') ALL_STOCKS = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
+                        if (updated > 0 && typeof ALL_STOCKS !== 'undefined') ALL_STOCKS = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []).concat(typeof UK_STOCKS !== 'undefined' ? UK_STOCKS : []);
                       }
                       var _ts = s.lastUpdated ? new Date(s.lastUpdated).toLocaleTimeString() : 'just now';
                       toast('✓ NGX prices refreshed: ' + s.pricesLoaded + '/148 stocks via EODHD', 'success');
@@ -10302,7 +10494,7 @@ function adminRefreshUSPrices() {
                       if (p.ytd != null) st.ytd = p.ytd;
                       updated++;
                     });
-                    if (updated > 0 && typeof ALL_STOCKS !== 'undefined') ALL_STOCKS = STOCKS.concat(US_STOCKS);
+                    if (updated > 0 && typeof ALL_STOCKS !== 'undefined') ALL_STOCKS = STOCKS.concat(US_STOCKS).concat(typeof UK_STOCKS !== "undefined" ? UK_STOCKS : []);
                   }
                   toast('✓ US prices updated for ' + (s.count || updated) + ' stocks', 'success');
                   if (res) res.innerHTML = '<span style="color:var(--green)">✓ ' + (s.count || updated) + '/500 US prices refreshed via Yahoo Finance · Last updated: ' + (s.updatedAt || 'just now') + '</span>';
@@ -13568,7 +13760,8 @@ function renderGreatCompanyScreen() {
     + '<select id="gc-market" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text)">'
     + '<option value="ngx">🇳🇬 NGX — Nigerian Stocks</option>'
     + '<option value="us">🇺🇸 US — American Stocks</option>'
-    + '<option value="all">🌍 Both Markets</option>'
+    + '<option value="uk">🇬🇧 UK — FTSE 100</option>'
+    + '<option value="all">🌍 All Markets</option>'
     + '</select>'
     + '<select id="gc-sector" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text)">'
     + '<option value="all">All Sectors</option>'
@@ -13617,12 +13810,14 @@ function gcRunScreen() {
     var pool = [];
     if (market === 'ngx' || market === 'all') pool = pool.concat(typeof STOCKS !== 'undefined' ? STOCKS : []);
     if (market === 'us'  || market === 'all') pool = pool.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
+    if (market === 'uk'  || market === 'all') pool = pool.concat(typeof UK_STOCKS !== 'undefined' ? UK_STOCKS : []);
     if (sector !== 'all') pool = pool.filter(function(s){ return s.sec === sector; });
 
     // Compute sector means from full pool (not filtered) for accurate comparisons
     var fullPool = [];
     if (market === 'ngx' || market === 'all') fullPool = fullPool.concat(typeof STOCKS !== 'undefined' ? STOCKS : []);
     if (market === 'us'  || market === 'all') fullPool = fullPool.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
+    if (market === 'uk'  || market === 'all') fullPool = fullPool.concat(typeof UK_STOCKS !== 'undefined' ? UK_STOCKS : []);
     var sectorMeans = gcComputeSectorMeans(fullPool);
 
     // Score all stocks
