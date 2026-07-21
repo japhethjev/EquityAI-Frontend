@@ -877,7 +877,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
   <section class="hero">
     <div class="hero-badge">🔴 Live · NGX &amp; NYSE/NASDAQ</div>
     <h1>Professional Stock Intelligence<br>for <em>Nigerian &amp; US Markets</em></h1>
-    <p>Real-time prices, deep fundamentals, AI-powered analysis and institutional-grade research on 148 NGX + 500 US stocks — all in one platform.</p>
+    <p>Real-time prices, deep fundamentals, AI-powered analysis and institutional-grade research on 148 NGX + 500 US + 100 UK + 100 UK stocks — all in one platform.</p>
     <div class="hero-ctas">
       <button class="btn btn-gold" onclick="showPage('auth','register')" style="font-size:15px;padding:13px 28px">Start Free — No Card Needed</button>
       <button class="btn btn-ghost" onclick="document.getElementById('pricing-section').scrollIntoView({behavior:'smooth'})" style="font-size:15px;padding:13px 28px">See Pricing ↓</button>
@@ -914,10 +914,10 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
     <div class="section-label">Platform Features</div>
     <div class="section-title">Everything you need to invest smarter</div>
     <div class="feat-grid">
-      <div class="feat-card"><div class="feat-icon">📊</div><div class="feat-title">Live Stock Watchlist</div><div class="feat-desc">646 stocks (148 NGX + 500 US) with real-time prices, YtD returns, P/E, ROE, dividend yields and market cap — updated daily from official NGX feeds.</div></div>
+      <div class="feat-card"><div class="feat-icon">📊</div><div class="feat-title">Live Stock Watchlist</div><div class="feat-desc">746 stocks (148 NGX + 500 US + 100 UK + 100 UK FTSE 100) with real-time prices, YtD returns, P/E, ROE, dividend yields and market cap — updated daily from official NGX feeds.</div></div>
       <div class="feat-card"><div class="feat-icon">📋</div><div class="feat-title">Deep Fundamentals</div><div class="feat-desc">Full income statement, balance sheet and valuation data. Revenue, PAT, EBITDA, margins, debt ratios, FCF and book value — all from FY2025 audited filings.</div></div>
       <div class="feat-card"><div class="feat-icon">⚡</div><div class="feat-title">AI-Powered Analysis</div><div class="feat-desc">Claude-powered analysis on demand. Get Fundamentals, Key Risks, 12-month Outlook and Valuation reports for any stock in seconds.</div></div>
-      <div class="feat-card"><div class="feat-icon">🔍</div><div class="feat-title">Smart Screener</div><div class="feat-desc">Filter 148 NGX + 500 US by sector, signal, YtD return, dividend status. Revenue and net profit columns let you compare fundamentals at a glance.</div></div>
+      <div class="feat-card"><div class="feat-icon">🔍</div><div class="feat-title">Smart Screener</div><div class="feat-desc">Filter 148 NGX + 500 US + 100 UK + 100 UK by sector, signal, YtD return, dividend status. Revenue and net profit columns let you compare fundamentals at a glance.</div></div>
       <div class="feat-card"><div class="feat-icon">⚖️</div><div class="feat-title">Side-by-Side Compare</div><div class="feat-desc">Pick up to 3 stocks and run an AI-powered comparison. Get a ranked recommendation based on risk-adjusted return, fundamentals and valuation.</div></div>
       <div class="feat-card"><div class="feat-icon">👑</div><div class="feat-title">Enterprise Admin Panel</div><div class="feat-desc">Enterprise clients get a full admin dashboard to create, manage and revoke access for up to 10 team members — all under one subscription.</div></div>
     </div>
@@ -1118,7 +1118,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
       <!-- Trust signals -->
       <div style="margin-top:22px;padding-top:16px;border-top:1px solid #f1f5f9;display:flex;justify-content:center;gap:20px;flex-wrap:wrap">
         <span style="font-size:10px;color:#94a3b8;display:flex;align-items:center;gap:4px">🔒 Secure login</span>
-        <span style="font-size:10px;color:#94a3b8;display:flex;align-items:center;gap:4px">📊 148 NGX + 500 US stocks</span>
+        <span style="font-size:10px;color:#94a3b8;display:flex;align-items:center;gap:4px">📊 148 NGX + 500 US + 100 UK + 100 UK stocks</span>
         <span style="font-size:10px;color:#94a3b8;display:flex;align-items:center;gap:4px">🤖 AI-powered</span>
         <span style="font-size:10px;color:#94a3b8;display:flex;align-items:center;gap:4px">💳 No card needed</span>
       </div>
@@ -1200,7 +1200,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
         <select class="filter-select" id="sigF" onchange="filterStocks()">
           <option value="">All signals</option><option>BUY</option><option>HOLD</option><option>WATCH</option>
         </select>
-        <span class="show-cnt" id="show-cnt">148 NGX + 500 US</span>
+        <span class="show-cnt" id="show-cnt">148 NGX + 500 US + 100 UK</span>
       </div>
       <div id="mkt-filter-bar" style="display:flex;gap:6px;margin-bottom:10px;background:var(--bg3);padding:4px;border-radius:10px;border:1px solid var(--border);width:fit-content">
         <button id="mf-ngx" onclick="setMktFilter('NGX',this)" style="padding:5px 14px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:var(--primary);color:#fff">&#x1F1F3;&#x1F1EC; NGX</button>
@@ -1348,7 +1348,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
           <div style="font-size:48px;margin-bottom:16px">💼</div>
           <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px">Configure Your Portfolio Above</div>
           <div style="font-size:13px;color:var(--text3);max-width:400px;margin:0 auto;line-height:1.7">
-            Choose your market (NGX, US, or Global), set your objective and risk tolerance. The AI applies JPMorgan-style factor analysis — value, momentum, quality and yield — to build an optimal portfolio from 148 NGX or 500 US stocks across NYSE, NASDAQ and the Nigerian Exchange.
+            Choose your market (NGX, US, or Global), set your objective and risk tolerance. The AI applies JPMorgan-style factor analysis — value, momentum, quality and yield — to build an optimal portfolio from 148 NGX, 500 US or 100 UK (FTSE 100) stocks across NYSE, NASDAQ, NGX and LSE.
           </div>
         </div>
       </div>
@@ -2071,7 +2071,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
   <div class="modal" style="max-width:460px">
     <button class="modal-close" onclick="closeModal('modal-upgrade')">&#10005;</button>
     <div class="modal-title" id="modal-upgrade-title">Upgrade to Pro</div>
-    <div class="modal-sub" id="modal-upgrade-sub">Unlock all 148 NGX + 500 US stocks, full fundamentals and AI analysis.</div>
+    <div class="modal-sub" id="modal-upgrade-sub">Unlock all 148 NGX + 500 US + 100 UK + 100 UK stocks, full fundamentals and AI analysis.</div>
     <div style="display:flex;gap:6px;margin-bottom:16px;background:var(--bg3);border-radius:8px;padding:4px">
       <button id="pay-ngn-tab" onclick="switchPaymentCurrency('NGN')" style="flex:1;padding:9px;border-radius:6px;font-size:12px;font-weight:600;border:none;cursor:pointer;background:var(--primary);color:#fff">&#127475;&#127468; Pay in Naira (&#8358;)</button>
       <button id="pay-usd-tab" onclick="switchPaymentCurrency('USD')" style="flex:1;padding:9px;border-radius:6px;font-size:12px;font-weight:600;border:none;cursor:pointer;background:transparent;color:var(--text2)">&#127758; Pay in USD ($)</button>
@@ -2654,7 +2654,7 @@ var STOCKS=[
 // ██     • On-demand: admin "Refresh Signals" button             ██
 // ██     • Whenever EODHD fundamentals update (quarterly)        ██
 // ██                                                              ██
-// ██   Cost: ~$0.68 per full run of 148 NGX + 500 US (Claude Haiku)    ██
+// ██   Cost: ~$0.68 per full run of 148 NGX + 500 US + 100 UK (Claude Haiku)    ██
 // ██                                                              ██
 // ██████████████████████████████████████████████████████████████████
 // ══════════════════════════════════════════════════════════════════════
@@ -3689,7 +3689,7 @@ function openSignalRunnerModal() {
     '<button class="btn btn-gold" id="signal-run-btn" onclick="startSignalRun()" style="flex:1;justify-content:center">▶ Run AI Signal Engine</button>',
     '<button class="btn btn-ghost btn-sm" onclick="closeModal(\'modal-signal-runner\')">Close</button>',
     '</div>',
-    '<div style="font-size:10px;color:var(--text3);margin-top:10px;text-align:center">Cost: ~$0.68 per full run of 148 NGX + 500 US using Claude Haiku</div>',
+    '<div style="font-size:10px;color:var(--text3);margin-top:10px;text-align:center">Cost: ~$0.68 per full run of 148 NGX + 500 US + 100 UK using Claude Haiku</div>',
     '</div>'
   ].join('');
 
@@ -4028,7 +4028,7 @@ function injectSignalEngineButton(plan) {
   btn.id = 'signal-engine-btn';
   btn.className = 'btn btn-ghost btn-sm';
   btn.innerHTML = '🤖 AI Signals';
-  btn.title = 'Run AI Signal Engine for all 148 NGX + 500 US';
+  btn.title = 'Run AI Signal Engine for all 148 NGX + 500 US + 100 UK';
   btn.onclick = function() { openSignalRunnerModal(); };
   hdr.insertBefore(btn, hdr.firstChild);
 }
@@ -4344,7 +4344,7 @@ function buildStockGrid(list) {
     h += '<div class="sc-ticker">' + s.t + '</div>';
     h += '<div class="sc-name">' + s.n + '</div>';
     h += '<span class="sc-sector">' + s.sec + '</span>';
-    var _priceSymbol = (s.market === 'US') ? '$' : '&#8358;';
+    var _priceSymbol = (s.market === 'US') ? '$' : (s.market === 'UK') ? '£' : '&#8358;';
     h += '<div class="sc-price">' + _priceSymbol + Number(s.price).toLocaleString() + '</div>';
     h += '<div class="sc-ytd' + (neg ? ' neg' : '') + '">' + (!locked ? ((neg ? '▼' : '▲') + ' ' + Math.abs(s.ytd) + '% YtD') : 'Upgrade to view') + '</div>';
 
@@ -4831,7 +4831,7 @@ function promptUpgrade(){
     toast('✓ Trial active — all stocks unlocked until May 18', 'success');
     return;
   }
-  toast('🔒 Upgrade to Pro to access all 148 NGX + 500 US','info');
+  toast('🔒 Upgrade to Pro to access all 148 NGX + 500 US + 100 UK','info');
   openUpgradeModal();
 }
 
@@ -8092,7 +8092,7 @@ function renderMyDashboard() {
       if (typeof US_STOCKS !== 'undefined') {
         isUS = US_STOCKS.some(function(x){ return x.t === item.ticker; });
       }
-      var sym = isUS ? '$' : '₦';
+      var sym = isUS ? '$' : (typeof s !== 'undefined' && s && s.market === 'UK') ? '£' : '₦';
       var flag = isUS ? '🇺🇸' : '🇳🇬';
       var curPrice = s ? s.price : item.addedPrice;
       var addPrice = item.addedPrice || curPrice;
@@ -9190,7 +9190,7 @@ function renderCompare(){
     h+='<select class="cmp-sel" data-p="'+p+'" onchange="cmpChange(this)">'+opts+'</select>';
     if(idx!==null&&idx!==undefined){
       var sv=(typeof ALL_STOCKS!=='undefined'&&ALL_STOCKS[idx])||STOCKS[idx];
-      var _cmpSym = sv.market==='US'?'$':'₦';
+      var _cmpSym = sv.market==='US'?'$':sv.market==='UK'?'£':'₦';
       var rows=[['Price',_cmpSym+Number(sv.price).toLocaleString()],['YtD',(sv.ytd>=0?'+':'')+sv.ytd+'%'],['Revenue',sv.rev],['PAT',sv.pat],['P/E',sv.pe+'x'],['ROE',sv.roe],['D/E',sv.de],['Div Yield',sv.dy+'%'],['Signal',sv.sig]];
       for(var r=0;r<rows.length;r++) h+='<div class="cmp-row"><span class="cmp-l">'+rows[r][0]+'</span><span class="cmp-v">'+rows[r][1]+'</span></div>';
     }else h+='<div style="font-size:12px;color:var(--text3);margin-top:6px">Select a stock above</div>';
@@ -13863,7 +13863,7 @@ function gcRenderResults(scored, sectorMeans, minScore) {
   scored.forEach(function(item) {
     var s = item.stock;
     var r = item.result;
-    var sym = s.market === 'US' ? '$' : '₦';
+    var sym = s.market === 'US' ? '$' : s.market === 'UK' ? '£' : '₦';
 
     // Score ring colour
     var ringColor = r.greatnessScore === 100 ? '#059669' : r.greatnessScore >= 83 ? '#059669' : r.greatnessScore >= 67 ? '#d97706' : '#dc2626';
