@@ -13706,7 +13706,8 @@ function gcComputeSectorMeans(pool) {
     var sec = s.sec || 'Other';
     if (!sectors[sec]) sectors[sec] = { gpm:[], ebitdam:[], roe:[], pe:[], evEbitda:[], de:[], count:0 };
     var d = sectors[sec];
-    var gpm = parseFloat((s.gpm||'0').replace('%','')) || 0;
+    var gpmRaw = parseFloat((s.gpm||'').replace('%',''));
+    var gpm = (!isNaN(gpmRaw) && gpmRaw > 0) ? gpmRaw : 0; // 0 = unknown, excluded from mean
 
     // Parse financial values handling T (trillion) and B (billion) suffixes correctly
     function parseFinNum(str) {
@@ -13731,12 +13732,13 @@ function gcComputeSectorMeans(pool) {
     // EV/EBITDA proxy: if not directly available, use PE * 0.6
     var evEbitda = s.evEbitda ? parseFloat(s.evEbitda) : (pe > 0 ? pe * 0.6 : 0);
 
-    if (gpm > 0)     d.gpm.push(gpm);
-    if (ebitdam > 0) d.ebitdam.push(ebitdam);
-    if (roe > 0)     d.roe.push(roe);
-    if (pe > 0)      d.pe.push(pe);
-    if (evEbitda > 0)d.evEbitda.push(evEbitda);
-    if (de >= 0)     d.de.push(de);
+    // Only push valid non-zero values so missing data doesn't distort sector means
+    if (gpm > 0)      d.gpm.push(gpm);
+    if (ebitdam > 0 && ebitdam <= 100) d.ebitdam.push(ebitdam);
+    if (roe > 0)      d.roe.push(roe);
+    if (pe > 0)       d.pe.push(pe);
+    if (evEbitda > 0) d.evEbitda.push(evEbitda);
+    if (de > 0)       d.de.push(de);  // exclude zero D/E to avoid distorting mean
     d.count++;
   });
 
@@ -13779,29 +13781,66 @@ function gcScoreStock(s, sectorMeans) {
   var ebitdam = ebitdaN > 0 && revNum > 0
     ? Math.min(ebitdaN / revNum * 100, 100)
     : (parseFloat((s.npm||'0').replace('%','')) * 1.4 || 0);
+
+  // GP% — use stored gpm, or estimate from pat/rev, or npm proxy
+  // If truly unavailable, mark as -1 (unknown) so we don't penalise
+  var gpm = parseFloat((s.gpm||'').replace('%',''));
+  if (isNaN(gpm) || gpm <= 0) {
+    // Try to estimate from pat/rev as a minimum proxy
+    var patB = _parseB(s.pat);
+    gpm = (patB > 0 && revNum > 0) ? Math.min(patB / revNum * 100, 100) : -1;
+  }
   var roe     = parseFloat((s.roe||'0').replace('%','')) || 0;
   var pe      = parseFloat(s.pe) || 0;
   var de      = parseFloat((s.de||'0').replace('x','')) || 0;
   var evEbitda = s.evEbitda ? parseFloat(s.evEbitda) : (pe > 0 ? pe * 0.6 : 0);
   var evEstimated = !s.evEbitda && pe > 0;
 
-  // For financials: substitute EBITDA margin for GP% in criterion 1
+  // For financials: use ebitdam for criterion 1 (GP% substitute)
+  // For non-financials: use gpm. If gpm is -1 (unknown), skip the absolute check
   var gp1Value    = isFinancial ? ebitdam : gpm;
   var gp1Mean     = isFinancial ? mean.ebitdam : mean.gpm;
   var gp1Threshold= isFinancial ? 15 : 35;
   var gp1Label    = isFinancial ? 'EBITDA Margin (sub. for GP%)' : 'Gross Profit Margin';
+  var gp1Unknown  = !isFinancial && gpm < 0; // truly no data available
+
+  // ── HELPER: evaluate a single criterion ──────────────────────────────
+  // When data is available: must beat absolute threshold AND sector mean
+  // When data is missing (value <= 0 for margins, -1 for gpm):
+  //   → only require absolute threshold, no sector comparison
+  //   → if truly no data (value = 0/null AND no sector mean): mark estimated, give benefit of doubt
+  function evalCrit(value, threshold, direction, mean, missing) {
+    if (missing) {
+      // No data at all — pass on absolute if mean also unavailable
+      if (mean === null || mean === undefined) return { pass: true, estimated: true };
+      // Has sector mean but no individual data — cannot score fairly, mark as N/A (estimated fail)
+      return { pass: false, estimated: true };
+    }
+    var absOk = direction === 'above' ? value >= threshold : (value > 0 && value <= threshold);
+    var relOk = (mean === null || mean === undefined)
+      ? true  // No sector mean → absolute threshold is sufficient
+      : (direction === 'above' ? value >= mean : value <= mean);
+    return { pass: absOk && relOk, estimated: false };
+  }
+
+  var _c1   = evalCrit(gp1Unknown ? 0 : gp1Value, gp1Threshold, 'above', gp1Mean, gp1Unknown);
+  var _c2   = evalCrit(ebitdam, 15, 'above', mean.ebitdam, ebitdam <= 0);
+  var _c3   = evalCrit(roe,     20, 'above', mean.roe,     roe <= 0);
+  var _c4   = evalCrit(pe,      20, 'below', mean.pe,      pe <= 0);
+  var _c5   = evalCrit(evEbitda,10, 'below', mean.evEbitda,evEbitda <= 0);
+  var _c6   = evalCrit(de,      0.5,'below', mean.de,      de < 0);
 
   // 6 criteria checks
   var c = [
     {
       label: gp1Label,
-      value: gp1Value,
+      value: gp1Unknown ? 0 : gp1Value,
       mean:  gp1Mean,
       unit:  '%',
       threshold: gp1Threshold,
-      direction: 'above', // higher is better
-      pass: gp1Value >= gp1Threshold && (gp1Mean === null || gp1Value >= gp1Mean),
-      estimated: false
+      direction: 'above',
+      pass: _c1.pass,
+      estimated: _c1.estimated
     },
     {
       label: 'EBITDA Margin',
@@ -13810,8 +13849,8 @@ function gcScoreStock(s, sectorMeans) {
       unit:  '%',
       threshold: 15,
       direction: 'above',
-      pass: ebitdam >= 15 && (mean.ebitdam === null || ebitdam >= mean.ebitdam),
-      estimated: false
+      pass: _c2.pass,
+      estimated: _c2.estimated
     },
     {
       label: 'Return on Equity (ROE)',
@@ -13820,8 +13859,8 @@ function gcScoreStock(s, sectorMeans) {
       unit:  '%',
       threshold: 20,
       direction: 'above',
-      pass: roe >= 20 && (mean.roe === null || roe >= mean.roe),
-      estimated: false
+      pass: _c3.pass,
+      estimated: _c3.estimated
     },
     {
       label: 'Price-to-Earnings (P/E)',
@@ -13829,9 +13868,9 @@ function gcScoreStock(s, sectorMeans) {
       mean:  mean.pe,
       unit:  'x',
       threshold: 20,
-      direction: 'below', // lower is better
-      pass: pe > 0 && pe <= 20 && (mean.pe === null || pe <= mean.pe),
-      estimated: false
+      direction: 'below',
+      pass: _c4.pass,
+      estimated: _c4.estimated
     },
     {
       label: 'EV/EBITDA',
@@ -13840,8 +13879,8 @@ function gcScoreStock(s, sectorMeans) {
       unit:  'x',
       threshold: 10,
       direction: 'below',
-      pass: evEbitda > 0 && evEbitda <= 10 && (mean.evEbitda === null || evEbitda <= mean.evEbitda),
-      estimated: evEstimated
+      pass: _c5.pass,
+      estimated: _c5.estimated
     },
     {
       label: 'Debt-to-Equity (D/E)',
@@ -13850,8 +13889,8 @@ function gcScoreStock(s, sectorMeans) {
       unit:  'x',
       threshold: 0.5,
       direction: 'below',
-      pass: de >= 0 && de <= 0.5 && (mean.de === null || de <= mean.de),
-      estimated: false
+      pass: _c6.pass,
+      estimated: _c6.estimated
     }
   ];
 
