@@ -3267,11 +3267,16 @@ var SIGNAL_ENGINE = {
           });
           if (updated > 0) {
             console.log('[Fundamentals] Applied ' + updated + ' ' + market + ' stocks from Yahoo Finance');
-            // Re-compute GC scores with fresh fundamentals
+            // Re-compute GC scores with fresh fundamentals using market-specific sector means
             if (typeof gcComputeSectorMeans === 'function' && typeof gcScoreStock === 'function') {
-              var allPool = (typeof STOCKS!=='undefined'?STOCKS:[]).concat(typeof US_STOCKS!=='undefined'?US_STOCKS:[]).concat(typeof UK_STOCKS!=='undefined'?UK_STOCKS:[]);
-              var means = gcComputeSectorMeans(allPool);
-              pool.forEach(function(st){ var r=gcScoreStock(st,means); st._gcScore=r.greatnessScore; st._gcPassed=r.passed; st._gcDecision=r.decision; });
+              var _mNgx = gcComputeSectorMeans(typeof STOCKS!=='undefined'?STOCKS:[]);
+              var _mUs  = gcComputeSectorMeans(typeof US_STOCKS!=='undefined'?US_STOCKS:[]);
+              var _mUk  = gcComputeSectorMeans(typeof UK_STOCKS!=='undefined'?UK_STOCKS:[]);
+              pool.forEach(function(st){
+                var m = st.market==='UK' ? _mUk : st.market==='US' ? _mUs : _mNgx;
+                var r = gcScoreStock(st, m);
+                st._gcScore=r.greatnessScore; st._gcPassed=r.passed; st._gcDecision=r.decision;
+              });
             }
             // Refresh grid if currently viewing this market
             if (typeof _mktFilter!=='undefined' && (_mktFilter===market || _mktFilter==='ALL')) {
@@ -3780,7 +3785,8 @@ function renderDetailPanel(idx) {
   var s   = (typeof ALL_STOCKS!=='undefined'&&ALL_STOCKS[idx])||STOCKS[idx];
   if (!s) return;
   var isUS  = (s.market === 'US');
-  var sym   = isUS ? '$' : '&#8358;';
+  var isUK  = (s.market === 'UK');
+  var sym   = isUS ? '$' : isUK ? '£' : '&#8358;';
   var mktLbl = isUS ? 'NYSE/NASDAQ · Yahoo Finance · Jul 2026' : 'NGX Official + EODHD · Jul 2026';
   var tab = activePanelTab[idx] || 'overview';  // Default to Overview tab
   var posChg = s.chg ? !s.chg.startsWith('-') : true;
@@ -3927,13 +3933,20 @@ function _initDashboardCore(fresh) {
   // available in signal prompts, stock cards, screener and portfolio engine
   if (typeof gcComputeSectorMeans === 'function' && typeof gcScoreStock === 'function') {
     try {
-      var _gcMeans = gcComputeSectorMeans(ALL_STOCKS);
-      // Include UK stocks in GC scoring
+      // Compute market-specific sector means so UK stocks compare against UK peers
+      // not against NGX peers (which would give wrong results)
+      var _ngxMeans = gcComputeSectorMeans(typeof STOCKS !== 'undefined' ? STOCKS : []);
+      var _usMeans  = gcComputeSectorMeans(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
+      var _ukMeans  = gcComputeSectorMeans(typeof UK_STOCKS !== 'undefined' ? UK_STOCKS : []);
+      var _gcMeans  = gcComputeSectorMeans(ALL_STOCKS); // fallback for mixed
+
+      // Score each stock against its own market's sector means
       var _allWithUK = ALL_STOCKS.concat(typeof UK_STOCKS !== 'undefined' && UK_STOCKS.length && ALL_STOCKS.indexOf(UK_STOCKS[0]) === -1 ? UK_STOCKS : []);
       _allWithUK.forEach(function(s) {
-        var r = gcScoreStock(s, _gcMeans);
-        s._gcScore  = r.greatnessScore;
-        s._gcPassed = r.passed;
+        var marketMeans = s.market === 'UK' ? _ukMeans : s.market === 'US' ? _usMeans : _ngxMeans;
+        var r = gcScoreStock(s, marketMeans);
+        s._gcScore    = r.greatnessScore;
+        s._gcPassed   = r.passed;
         s._gcDecision = r.decision;
         s._gcCriteria = r.criteria;
       });
@@ -4309,6 +4322,12 @@ function buildStockGrid(list) {
       for (var _ui = 0; _ui < US_STOCKS.length; _ui++) {
         if (US_STOCKS[_ui].t === s.t) { idx = STOCKS.length + _ui; break; }
       }
+    } else if (s.market === 'UK') {
+      // UK stocks: position in ALL_STOCKS = STOCKS.length + US_STOCKS.length + position in UK_STOCKS
+      var _ukArr = typeof UK_STOCKS !== 'undefined' ? UK_STOCKS : [];
+      for (var _ki = 0; _ki < _ukArr.length; _ki++) {
+        if (_ukArr[_ki].t === s.t) { idx = STOCKS.length + US_STOCKS.length + _ki; break; }
+      }
     } else {
       for (var _ni = 0; _ni < STOCKS.length; _ni++) {
         if (STOCKS[_ni].t === s.t) { idx = _ni; break; }
@@ -4324,10 +4343,13 @@ function buildStockGrid(list) {
     h += '<div class="stock-card' + (ia ? ' active' : '') + (locked ? ' locked' : '') + '" onclick="' + (locked ? 'promptUpgrade()' : 'clickStock(' + idx + ')') + '" style="animation-delay:' + Math.min(i * 0.04, 0.5) + 's">';
     if (locked) h += '<div class="lock-overlay">🔒</div>';
 
-    // US market badge (top-left) or signal dot (top-right area)
+    // Market badge (top-left)
     if (s.market === 'US') {
       h += '<span style="position:absolute;top:7px;left:8px;font-size:9px;font-weight:800;'
          + 'background:#dbeafe;color:#1e40af;padding:1px 5px;border-radius:4px;z-index:2">US</span>';
+    } else if (s.market === 'UK') {
+      h += '<span style="position:absolute;top:7px;left:8px;font-size:9px;font-weight:800;'
+         + 'background:#fce7f3;color:#9d174d;padding:1px 5px;border-radius:4px;z-index:2">UK</span>';
     }
     // Signal dot
     h += '<div class="sdot ' + (s.sig === 'BUY' ? 'sdot-buy' : s.sig === 'HOLD' ? 'sdot-hold' : 'sdot-watch') + '"></div>';
@@ -5144,6 +5166,7 @@ var RISK_FREE    = 0.220;  // 22.0% Nigeria T-bill/FGN bond rate (Jul 2026)
 
 function computeIntrinsicValues(s) {
   var _isUS = (s.market === 'US');
+  var _isUK = (s.market === 'UK');
 
   // US market constants (Fed rate 4.25%, S&P WACC range 8-12%)
   var US_WACC_BASE = 0.095;  // 9.5% base WACC for US large-cap
@@ -5153,7 +5176,7 @@ function computeIntrinsicValues(s) {
   var US_PE_MED    = 22.0;   // S&P 500 median P/E (Jul 2026)
 
   // Currency strip — ₦ for NGX, $ for US
-  var _strip = _isUS ? /[$,]/g : /[\u20a6,N]/g;
+  var _strip = _isUS ? /[$,]/g : _isUK ? /[£,]/g : /[\u20a6,N]/g;
 
   var eps   = parseFloat(s.eps)  || 0;
   var bv    = parseFloat((s.bv||'0').replace(_strip,'')) || 0;
@@ -5364,7 +5387,7 @@ function computeIntrinsicValues(s) {
 
 function buildValuationPrompt(s) {
   var v = computeIntrinsicValues(s);
-  var N = (s && s.market === 'US') ? '$' : '\u20a6';
+  var N = (s && s.market === 'US') ? '$' : (s && s.market === 'UK') ? '£' : '\u20a6';
   return 'You are a senior equity research analyst at EquityAI, JPMorgan quality, 15+ years Nigerian capital markets.\n\n'
     + 'COMPANY: ' + s.t + ' (' + s.n + ') | Sector: ' + s.sec + '\n'
     + 'Price: ' + N + s.price + ' | YtD: +' + (s.ytd||0) + '% | MCap: ' + (s.mc||'N/A') + '\n'
@@ -5581,10 +5604,11 @@ function generateReportDirectly(idx, s, callback) {
 // ── Open report as branded PDF-ready page in new tab ─────────────────
 function openReportTab(s, d) {
   var _isUS = (s.market === 'US');
+  var _isUK = (s.market === 'UK');
   // Use d.currency from report if available (most reliable), else fall back to market
-  var _sym  = (d.currency === 'USD') ? '$' : (d.currency === 'NGN') ? '₦' : (_isUS ? '$' : '₦');
+  var _sym  = (d.currency === 'USD') ? '$' : (d.currency === 'GBP') ? '£' : (d.currency === 'NGN') ? '₦' : (_isUS ? '$' : _isUK ? '£' : '₦');
   var _exchange = _isUS ? 'NYSE/NASDAQ' : 'NGX';
-  var _mktLabel = _isUS ? 'US Main Board' : 'NGX Main Board';
+  var _mktLabel = _isUS ? 'US Main Board' : _isUK ? 'FTSE 100 (LSE)' : 'NGX Main Board';
   var _dataSource = _isUS ? 'Yahoo Finance · Jul 2026' : 'EODHD · Jul 2026';
   var _intel = _isUS ? 'US Stock Intelligence' : 'Nigerian Stock Intelligence';
   // Always use current live price for upside % calculation
@@ -5863,7 +5887,7 @@ function openReportTab(s, d) {
     + '<div style="text-align:right;font-size:10px;opacity:.7;line-height:1.8">'
     + '<div>Report: ' + s.t + ' · ' + genDate + '</div>'
     + '<div>Analyst: EquityAI Research Team</div>'
-    + '<div>Coverage: ' + _mktLabel + ' · All ' + (_isUS ? '500' : '148') + ' Companies</div>'
+    + '<div>Coverage: ' + _mktLabel + ' · All ' + (_isUS ? '500' : _isUK ? '100' : '148') + ' Companies</div>'
     + '</div></div></div>'
     + '<div style="font-size:10px;color:#94a3b8;line-height:1.75;padding:0 4px;margin-bottom:24px">'
     + '<strong>DISCLAIMER:</strong> This report is AI-generated by EquityAI and is for informational purposes only. It does not constitute investment advice or a solicitation to buy or sell securities. '
@@ -6840,7 +6864,8 @@ function renderPortfolio(portfolio, weights, bt, amount, ai, market) {
     return;
   }
   var _isUS = (market === 'us'); var _isGlb = (market === 'global');
-  var _sym = _isUS ? '$' : '\u20a6'; var _bmark = _isUS ? 'S&P 500' : _isGlb ? 'Global Blended' : 'NGX ASI';
+  var _isUK_p = (_portData && _portData.market === 'uk') || (typeof isUK !== 'undefined' && isUK);
+  var _sym = _isUS ? '$' : _isUK_p ? '£' : '\u20a6'; var _bmark = _isUS ? 'S&P 500' : _isUK_p ? 'FTSE 100' : _isGlb ? 'Global Blended' : 'NGX ASI';
   var _bmkRet = _isUS ? (bt.spxReturn||0) : (bt.ngxReturn||0);
   var totalW = weights.reduce(function(a,b){return a+b;},0) || 1;
   var normW  = weights.map(function(w){return Math.round(w/totalW*100*10)/10;});
@@ -13818,11 +13843,15 @@ function gcRunScreen() {
     if (market === 'ngx' || market === 'all') fullPool = fullPool.concat(typeof STOCKS !== 'undefined' ? STOCKS : []);
     if (market === 'us'  || market === 'all') fullPool = fullPool.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
     if (market === 'uk'  || market === 'all') fullPool = fullPool.concat(typeof UK_STOCKS !== 'undefined' ? UK_STOCKS : []);
-    var sectorMeans = gcComputeSectorMeans(fullPool);
+    // Score all stocks using market-specific sector means
+    var ngxMeans = gcComputeSectorMeans(typeof STOCKS !== 'undefined' ? STOCKS : []);
+    var usMeans  = gcComputeSectorMeans(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
+    var ukMeans  = gcComputeSectorMeans(typeof UK_STOCKS !== 'undefined' ? UK_STOCKS : []);
 
     // Score all stocks
     var scored = pool.map(function(s) {
-      return { stock: s, result: gcScoreStock(s, sectorMeans) };
+      var marketMeans = s.market === 'UK' ? ukMeans : s.market === 'US' ? usMeans : ngxMeans;
+      return { stock: s, result: gcScoreStock(s, marketMeans) };
     }).filter(function(x){ return x.result.greatnessScore >= minScore; })
       .sort(function(a,b){ return b.result.greatnessScore - a.result.greatnessScore; });
 
@@ -14218,12 +14247,12 @@ function mpAnalyserRunAnalysis(holdings) {
   var usCount  = holdings.filter(function(h){ return h.stockData && h.stockData.market === 'US'; }).length;
   var isMixed  = ngxCount > 0 && usCount > 0;
   var isUSPort = usCount > 0 && ngxCount === 0; // pure US only
-  var sym = isUSPort ? '$' : '₦'; // default to NGN for mixed or pure NGX
+  var sym = isUSPort ? '$' : (holdings.some(function(h){ return h.stockData && h.stockData.market === 'UK'; }) && !isUSPort) ? '£' : '₦'; // default to NGN for mixed or pure NGX
 
   // For mixed portfolios, tag each holding with its currency
   holdings.forEach(function(h) {
     h.isUS = h.stockData && h.stockData.market === 'US';
-    h.sym  = h.isUS ? '$' : '₦';
+    h.sym  = h.isUS ? '$' : (h.stockData && h.stockData.market === 'UK') ? '£' : '₦';
   });
 
   // Replacement pool — show both markets for mixed portfolios
@@ -14255,7 +14284,7 @@ function mpAnalyserRunAnalysis(holdings) {
   }
 
   // ── 5. RENDER RESULTS ─────────────────────────────────────────────
-  var sym = isUSPort ? '$' : '₦';
+  var sym = isUSPort ? '$' : (holdings.some(function(h){ return h.stockData && h.stockData.market === 'UK'; }) && !isUSPort) ? '£' : '₦';
   var html = '';
 
   // Mixed portfolio notice
