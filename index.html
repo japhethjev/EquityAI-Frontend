@@ -3514,7 +3514,7 @@ function buildSignalPanel(s) {
     var _sc = SIGNAL_ENGINE.signalColour(sig.signal);
     var _sb = SIGNAL_ENGINE.signalBg(sig.signal);
     var _panelScore = s._buffettScore || computeBuffettScore(s); // Always Buffett score
-    html += '<div style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;'
+    html += '<div class="buffett-score-clickable" data-buffett-ticker="' + s.t + '" title="Click for Buffett score breakdown" style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;'
           + 'width:72px;height:72px;border-radius:50%;background:' + _sb + ';border:2.5px solid ' + _sc + '">';
     html += '<div style="font-family:\'DM Mono\',monospace;font-size:24px;font-weight:800;color:' + _sc + ';line-height:1">'
           + _panelScore + '</div>';
@@ -4375,15 +4375,15 @@ function buildStockGrid(list) {
       // AI Signal badge + Score — combined prominent display
       h += '<div style="margin-top:8px;margin-bottom:6px">';
       // Full-width signal+score badge
-      h += '<div style="display:flex;align-items:center;justify-content:space-between;background:' + sigBg
-         + ';border:1.5px solid ' + sigColor + ';border-radius:8px;padding:5px 10px">';
+      h += '<div class="buffett-score-clickable" data-buffett-ticker="' + s.t + '" style="display:flex;align-items:center;justify-content:space-between;background:' + sigBg
+         + ';border:1.5px solid ' + sigColor + ';border-radius:8px;padding:5px 10px;cursor:pointer" title="Click for Buffett score breakdown">';
       // Left: signal label
       h += '<span style="font-family:\'Syne\',sans-serif;font-size:12px;font-weight:800;color:' + sigColor + ';letter-spacing:.04em">' + s.sig + '</span>';
-      // Right: score — always show. AI score if available, Buffett score if not.
-      var _displayScore = s._buffettScore || computeBuffettScore(s); // Always Buffett score
+      // Right: score
+      var _displayScore = s._buffettScore || computeBuffettScore(s);
       h += '<div style="display:flex;align-items:baseline;gap:1px">';
       h += '<span style="font-family:\'DM Mono\',monospace;font-size:16px;font-weight:700;color:' + sigColor + '">' + _displayScore + '</span>';
-      h += '<span style="font-size:10px;color:' + sigColor + ';opacity:.7">/10</span>';
+      h += '<span style="font-size:10px;color:' + sigColor + ';opacity:.7">/10 ▸</span>';
       h += '</div>';
       h += '</div>';
       h += '</div>';
@@ -13358,11 +13358,16 @@ function mpCloseModal(id) {
 
 // Event delegation — handles all data-attribute driven clicks in My Portfolio
 document.addEventListener('click', function(e) {
-  var t = e.target.closest ? (e.target.closest('.gc-kpi-clickable') || e.target) : e.target;
-  // Greatness Score KPI card — works on all markets
-  if ((t.classList.contains('gc-kpi-clickable') || t.closest('.gc-kpi-clickable')) && typeof gcOpenScorecardModal === 'function') {
+  var t = e.target.closest ? (e.target.closest('.gc-kpi-clickable') || e.target.closest('.buffett-score-clickable') || e.target) : e.target;
+  // Greatness Score KPI card
+  if ((t.classList.contains('gc-kpi-clickable') || t.closest && t.closest('.gc-kpi-clickable')) && typeof gcOpenScorecardModal === 'function') {
     var card = t.classList.contains('gc-kpi-clickable') ? t : t.closest('.gc-kpi-clickable');
     if (card && card.dataset.gcTicker) { gcOpenScorecardModal(card.dataset.gcTicker); return; }
+  }
+  // Buffett Score badge — stock card and signal panel circle
+  var bCard = t.classList.contains('buffett-score-clickable') ? t : (t.closest && t.closest('.buffett-score-clickable'));
+  if (bCard && bCard.dataset.buffettTicker && typeof buffettOpenModal === 'function') {
+    buffettOpenModal(bCard.dataset.buffettTicker); return;
   }
   // Modal close buttons
   if (t.classList.contains('mp-modal-close') && t.dataset.modal) { mpCloseModal(t.dataset.modal); return; }
@@ -13616,6 +13621,146 @@ function mpGenerateReport() {
 // GREATNESS SCORECARD MODAL — opens from KPI card click on any stock
 // Works for NGX, US and UK stocks using market-specific sector means
 // ══════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════
+// BUFFETT SCORE BREAKDOWN MODAL
+// 6-factor quality score with full per-factor breakdown + score bars
+// Works for NGX, US and UK stocks
+// ══════════════════════════════════════════════════════════════════════
+function computeBuffettBreakdown(s) {
+  if (!s) return null;
+  var isUS = s.market === "US";
+  var isUK = s.market === "UK";
+  var sym  = isUS ? "$" : isUK ? "£" : "₦";
+
+  function _pB(str) {
+    if (!str) return 0;
+    var s2 = String(str).replace(/[₦$£,\s]/g,"");
+    if (s2.indexOf("T") >= 0) return parseFloat(s2) * 1000;
+    if (s2.indexOf("B") >= 0) return parseFloat(s2);
+    if (s2.indexOf("M") >= 0) return parseFloat(s2) / 1000;
+    return parseFloat(s2) || 0;
+  }
+
+  var roe = parseFloat((s.roe||"0").replace("%","")) || 0;
+  var roeScore = roe>=30?10:roe>=25?9:roe>=20?8:roe>=15?7:roe>=12?6:roe>=8?4:2;
+
+  var pe = parseFloat(s.pe) || 20;
+  var peScore = (isUS||isUK)
+    ? (pe<=0?1:pe<12?10:pe<18?9:pe<25?7:pe<35?5:pe<50?3:1)
+    : (pe<=0?1:pe<4?10:pe<6?9:pe<8?8:pe<12?7:pe<18?5:pe<25?3:1);
+
+  var npm = parseFloat((s.npm||"0").replace("%","")) || 0;
+  var npmScore = npm>=40?10:npm>=30?9:npm>=20?8:npm>=12?6:npm>=6?4:npm>=2?2:1;
+
+  var de = parseFloat((s.de||"1").replace("x","")) || 1;
+  var deScore = de<=0.1?10:de<=0.3?9:de<=0.5?8:de<=0.8?7:de<=1.0?6:de<=1.5?4:de<=2.0?3:1;
+
+  var fcfNum = _pB(s.fcf); var mcNum = _pB(s.mc);
+  var fcfYield = (mcNum>0&&fcfNum>0) ? (fcfNum/mcNum*100) : 0;
+  var fcfScore = fcfNum<=0?1:fcfYield>=15?10:fcfYield>=10?9:fcfYield>=7?8:fcfYield>=5?7:fcfYield>=3?6:fcfYield>=1?4:2;
+
+  var revy = parseFloat((s.revy||"0").replace("+","").replace("%","")) || 0;
+  var revScore = revy>=50?10:revy>=30?9:revy>=20?8:revy>=10?7:revy>=5?6:revy>=0?4:1;
+
+  var raw = (roeScore*0.20)+(peScore*0.20)+(npmScore*0.20)+(deScore*0.15)+(fcfScore*0.15)+(revScore*0.10);
+  var total = Math.round(raw);
+  var verdict = total>=9?"EXCELLENT":total>=8?"STRONG BUY":total>=7?"BUY":total>=6?"HOLD":total>=4?"WATCH":"WEAK";
+  var totalColor = total>=8?"var(--green)":total>=6?"var(--amber)":"var(--red)";
+
+  return {
+    total:total, verdict:verdict, totalColor:totalColor, sym:sym,
+    factors:[
+      {label:"Return on Equity (ROE)",    weight:"20%", score:roeScore, value:roe+"%",
+       desc:"Buffett\'s primary quality metric. ROE ≥20% shows strong competitive advantage.",
+       thr:"≥20% ideal"},
+      {label:"P/E Ratio",                 weight:"20%", score:peScore,  value:pe+"x",
+       desc:(isUS||isUK)?"US/UK: <18x fair value, >35x expensive.":"NGX: <8x cheap, >18x expensive.",
+       thr:(isUS||isUK)?"<18x preferred":"<12x preferred"},
+      {label:"Net Profit Margin",         weight:"20%", score:npmScore, value:npm+"%",
+       desc:"Earnings quality. ≥30% = exceptional moat. ≥20% = strong. <5% = thin margins.",
+       thr:"≥20% for quality"},
+      {label:"Debt / Equity",             weight:"15%", score:deScore,  value:de+"x",
+       desc:"Balance sheet safety. Buffett prefers low debt. D/E ≤0.5x = fortress.",
+       thr:"≤0.5x preferred"},
+      {label:"FCF Yield",                 weight:"15%", score:fcfScore, value:fcfYield>0?fcfYield.toFixed(1)+"%":"N/A",
+       desc:"Free Cash Flow ÷ Market Cap. Real cash generation test. ≥5% = strong value.",
+       thr:"≥5% preferred"},
+      {label:"Revenue Growth YoY",        weight:"10%", score:revScore, value:(revy>=0?"+":"")+revy+"%",
+       desc:"Revenue momentum. ≥20% = strong. ≥10% = healthy. Negative = concern.",
+       thr:"≥10% preferred"}
+    ]
+  };
+}
+
+function buffettOpenModal(ticker) {
+  var s = null;
+  if (typeof STOCKS !== "undefined")    s = s || STOCKS.find(function(x){ return x.t===ticker; });
+  if (typeof US_STOCKS !== "undefined") s = s || US_STOCKS.find(function(x){ return x.t===ticker; });
+  if (typeof UK_STOCKS !== "undefined") s = s || UK_STOCKS.find(function(x){ return x.t===ticker; });
+  if (!s) { toast("Stock not found: "+ticker,"error"); return; }
+
+  var bd = computeBuffettBreakdown(s);
+  if (!bd) return;
+
+  function scoreBar(score) {
+    var color = score>=8?"var(--green)":score>=6?"var(--amber)":"var(--red)";
+    var html = "<div style=\"display:flex;align-items:center;gap:2px;margin-top:5px\">";
+    for (var i=1;i<=10;i++) {
+      html += "<div style=\"width:16px;height:12px;border-radius:2px;background:"+(i<=score?color:"var(--bg3)")+";flex-shrink:0\"></div>";
+    }
+    html += "<span style=\"font-family:DM Mono,monospace;font-size:12px;font-weight:800;color:"+color+";margin-left:6px\">"+score+"/10</span></div>";
+    return html;
+  }
+
+  var factorsHtml = bd.factors.map(function(f) {
+    var fc = f.score>=8?"var(--green)":f.score>=6?"var(--amber)":"var(--red)";
+    return "<div style=\"padding:11px 0;border-bottom:1px solid var(--border)\">"
+      +"<div style=\"display:flex;justify-content:space-between;align-items:center\">"
+      +"<span style=\"font-size:12px;font-weight:700;color:var(--text)\">"+f.label+"</span>"
+      +"<span style=\"font-size:9px;font-weight:700;background:var(--bg3);color:var(--text3);padding:2px 7px;border-radius:20px\">"+f.weight+"</span>"
+      +"</div>"
+      +"<div style=\"font-size:11px;color:"+fc+";font-weight:700;margin-top:3px\">"+f.value+" &nbsp;·&nbsp; "+f.thr+"</div>"
+      +scoreBar(f.score)
+      +"<div style=\"font-size:10px;color:var(--text3);margin-top:4px;line-height:1.5\">"+f.desc+"</div>"
+      +"</div>";
+  }).join("");
+
+  var mktLabel = s.market==="UK"?"🇬🇧 FTSE 100":s.market==="US"?"🇺🇸 NYSE/NASDAQ":"🇳🇬 NGX";
+  var overlay = document.createElement("div");
+  overlay.className = "mp-modal-overlay";
+  overlay.id = "buffett-score-overlay";
+  overlay.innerHTML = "<div class=\"mp-modal\" style=\"max-width:540px\">"
+    +"<div class=\"mp-modal-hdr\">"
+    +"<div>"
+    +"<div style=\"font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:var(--text)\">📊 Buffett Quality Score — "+s.t+"</div>"
+    +"<div style=\"font-size:11px;color:var(--text3);margin-top:2px\">"+s.n+" · "+s.sec+" · "+mktLabel+"</div>"
+    +"</div>"
+    +"<button class=\"mp-modal-close\" data-modal=\"buffett-score-overlay\" style=\"background:transparent;border:none;font-size:20px;color:var(--text3);cursor:pointer\">✕</button>"
+    +"</div>"
+    +"<div class=\"mp-modal-body\">"
+    +"<div style=\"display:flex;align-items:center;gap:16px;background:var(--bg3);border-radius:12px;padding:16px;margin-bottom:16px\">"
+    +"<div style=\"width:80px;height:80px;border-radius:50%;border:4px solid "+bd.totalColor+";display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0\">"
+    +"<div style=\"font-family:Syne,sans-serif;font-size:26px;font-weight:800;color:"+bd.totalColor+";line-height:1\">"+bd.total+"</div>"
+    +"<div style=\"font-size:10px;color:var(--text3);font-weight:700\">/10</div>"
+    +"</div>"
+    +"<div>"
+    +"<div style=\"font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:"+bd.totalColor+"\">"+bd.verdict+"</div>"
+    +"<div style=\"font-size:11px;color:var(--text3);margin-top:4px;line-height:1.6\">"+bd.sym+s.price+" · P/E "+s.pe+"x · ROE "+s.roe+" · Margin "+s.npm+"</div>"
+    +"<div style=\"font-size:10px;color:var(--text3);margin-top:2px\">6-factor weighted composite · Buffett quality framework</div>"
+    +"</div></div>"
+    +"<div style=\"font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px\">Factor Breakdown</div>"
+    +factorsHtml
+    +"<div style=\"background:rgba(26,86,219,.06);border-radius:8px;padding:10px 12px;margin-top:12px;font-size:10px;color:var(--text3);line-height:1.7\">"
+    +"📋 <strong style=\"color:var(--text)\">Methodology:</strong> Weighted composite of 6 Buffett quality factors. "
+    +"ROE 20% · P/E 20% · Net Margin 20% · D/E 15% · FCF Yield 15% · Revenue Growth 10%. "
+    +"Score ≥8 = strong BUY quality · 6–7 = HOLD · &lt;6 = WATCH/AVOID"
+    +"</div>"
+    +"</div></div>";
+
+  document.body.appendChild(overlay);
+}
+
 function gcOpenScorecardModal(ticker) {
   // Find stock in all markets
   var s = null;
@@ -14007,15 +14152,14 @@ function gcRunScreen() {
       .sort(function(a,b){ return b.result.greatnessScore - a.result.greatnessScore; });
 
     window._gcLastResults = scored;
-    window._gcLastMeans = sectorMeans;
-    gcRenderResults(scored, sectorMeans, minScore);
+    window._gcLastMeans = { ngx: ngxMeans, us: usMeans, uk: ukMeans };
+    gcRenderResults(scored, minScore);
   }, 100);
 }
 
-function gcRenderResults(scored, sectorMeans, minScore) {
+function gcRenderResults(scored, minScore) {
   var resultsEl = document.getElementById('gc-results');
   if (!resultsEl) return;
-
   if (!scored.length) {
     resultsEl.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">'
       + '<div style="font-size:32px;margin-bottom:10px">📋</div>'
