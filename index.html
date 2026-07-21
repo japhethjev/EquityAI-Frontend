@@ -13707,9 +13707,24 @@ function gcComputeSectorMeans(pool) {
     if (!sectors[sec]) sectors[sec] = { gpm:[], ebitdam:[], roe:[], pe:[], evEbitda:[], de:[], count:0 };
     var d = sectors[sec];
     var gpm = parseFloat((s.gpm||'0').replace('%','')) || 0;
-    var ebitdam = parseFloat((s.ebitda||'0').replace(/[₦$,B]/g,'')) > 0 && parseFloat((s.rev||'1').replace(/[₦$,T]/g,'')) > 0
-      ? (parseFloat((s.ebitda||'0').replace(/[₦$,B]/g,'')) / parseFloat((s.rev||'1').replace(/[₦$,T]/g,'')) * 100)
-      : parseFloat((s.npm||'0').replace('%','')) * 1.4 || 0; // fallback estimate
+
+    // Parse financial values handling T (trillion) and B (billion) suffixes correctly
+    function parseFinNum(str) {
+      if (!str) return 0;
+      var s2 = String(str).replace(/[₦$£,\s]/g,'');
+      if (s2.indexOf('T') >= 0) return parseFloat(s2) * 1000; // convert T to B
+      if (s2.indexOf('B') >= 0) return parseFloat(s2);         // already in B
+      if (s2.indexOf('M') >= 0) return parseFloat(s2) / 1000;  // convert M to B
+      return parseFloat(s2) || 0;
+    }
+
+    var ebitdaB = parseFinNum(s.ebitda);
+    var revB    = parseFinNum(s.rev);
+    var ebitdam = (ebitdaB > 0 && revB > 0)
+      ? (ebitdaB / revB * 100)
+      : (parseFloat((s.npm||'0').replace('%','')) * 1.4 || 0);
+    // Cap EBITDA margin at 100% to prevent outliers from distorting sector means
+    ebitdam = Math.min(ebitdam, 100);
     var roe = parseFloat((s.roe||'0').replace('%','')) || 0;
     var pe = parseFloat(s.pe) || 0;
     var de = parseFloat((s.de||'0').replace('x','')) || 0;
@@ -13750,9 +13765,20 @@ function gcScoreStock(s, sectorMeans) {
 
   // Parse values
   var gpm     = parseFloat((s.gpm||'0').replace('%','')) || 0;
-  var revNum  = parseFloat((s.rev||'1').replace(/[₦$,T]/g,'').replace(/[₦$,B]/g,'')) || 1;
-  var ebitdaN = parseFloat((s.ebitda||'0').replace(/[₦$,B]/g,'')) || 0;
-  var ebitdam = ebitdaN > 0 && revNum > 0 ? (ebitdaN / revNum * 100) : (parseFloat((s.npm||'0').replace('%','')) * 1.4 || 0);
+  // Parse financial values normalizing T/B/M to billions for consistent ratio calculation
+  function _parseB(str) {
+    if (!str) return 0;
+    var s2 = String(str).replace(/[₦$£,\s]/g,'');
+    if (s2.indexOf('T') >= 0) return parseFloat(s2) * 1000;
+    if (s2.indexOf('B') >= 0) return parseFloat(s2);
+    if (s2.indexOf('M') >= 0) return parseFloat(s2) / 1000;
+    return parseFloat(s2) || 0;
+  }
+  var revNum  = _parseB(s.rev)  || 1;
+  var ebitdaN = _parseB(s.ebitda);
+  var ebitdam = ebitdaN > 0 && revNum > 0
+    ? Math.min(ebitdaN / revNum * 100, 100)
+    : (parseFloat((s.npm||'0').replace('%','')) * 1.4 || 0);
   var roe     = parseFloat((s.roe||'0').replace('%','')) || 0;
   var pe      = parseFloat(s.pe) || 0;
   var de      = parseFloat((s.de||'0').replace('x','')) || 0;
