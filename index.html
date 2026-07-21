@@ -3787,7 +3787,7 @@ function renderDetailPanel(idx) {
   var isUS  = (s.market === 'US');
   var isUK  = (s.market === 'UK');
   var sym   = isUS ? '$' : isUK ? '£' : '&#8358;';
-  var mktLbl = isUS ? 'NYSE/NASDAQ · Yahoo Finance · Jul 2026' : 'NGX Official + EODHD · Jul 2026';
+  var mktLbl = isUS ? 'NYSE/NASDAQ · Yahoo Finance · Jul 2026' : isUK ? 'LSE · Yahoo Finance · Jul 2026' : 'NGX Official + EODHD · Jul 2026';
   var tab = activePanelTab[idx] || 'overview';  // Default to Overview tab
   var posChg = s.chg ? !s.chg.startsWith('-') : true;
 
@@ -4735,7 +4735,7 @@ function buildOverview(s){
   h+='<div class="kpi-card"><div class="kpi-lbl">Net Profit</div><div class="kpi-val g">'+s.pat+'</div></div>';
   h+='<div class="kpi-card"><div class="kpi-lbl">Dividend</div><div class="kpi-val gold">'+_sym+s.div+'/share</div></div>';
   h+='<div class="kpi-card"><div class="kpi-lbl">Signal</div><div class="kpi-val '+(s.sig==='BUY'?'g':'')+'">'+s.sig+'</div></div>';
-  h+='<div class="kpi-card" style="border-color:'+(s._gcScore>=83?'var(--green)':s._gcScore>=67?'var(--amber)':'var(--red)')+'"><div class="kpi-lbl">⭐ Greatness</div><div class="kpi-val" style="color:'+(s._gcScore>=83?'var(--green)':s._gcScore>=67?'var(--amber)':'var(--red)')+'">'+(s._gcScore !== undefined ? s._gcScore+'%' : 'N/A')+'</div></div>';
+  h+='<div class="kpi-card" onclick="gcOpenScorecardModal(\''+s.t+'\')" style="cursor:pointer;border-color:'+(s._gcScore>=83?'var(--green)':s._gcScore>=67?'var(--amber)':'var(--red)')+'"><div class="kpi-lbl">⭐ Greatness <span style=\'font-size:9px;opacity:.6\'>▸ click</span></div><div class="kpi-val" style="color:'+(s._gcScore>=83?'var(--green)':s._gcScore>=67?'var(--amber)':'var(--red)')+'">'+(s._gcScore !== undefined ? s._gcScore+'%' : 'N/A')+'</div></div>';
   h+='</div>';
   if(s.thesis) h+='<div class="thesis-box">'+s.thesis+'</div>';
   h+=bh;
@@ -13604,8 +13604,87 @@ function mpGenerateReport() {
 // END MY PORTFOLIO MODULE
 // ══════════════════════════════════════════════════════════════════════
 
+
 // ══════════════════════════════════════════════════════════════════════
-// GREAT COMPANY STRATEGY — JJ's 6-Factor Quality Investment Framework
+// GREATNESS SCORECARD MODAL — opens from KPI card click on any stock
+// Works for NGX, US and UK stocks using market-specific sector means
+// ══════════════════════════════════════════════════════════════════════
+function gcOpenScorecardModal(ticker) {
+  // Find stock in all markets
+  var s = null;
+  if (typeof STOCKS !== 'undefined')    s = s || STOCKS.find(function(x){ return x.t === ticker; });
+  if (typeof US_STOCKS !== 'undefined') s = s || US_STOCKS.find(function(x){ return x.t === ticker; });
+  if (typeof UK_STOCKS !== 'undefined') s = s || UK_STOCKS.find(function(x){ return x.t === ticker; });
+  if (!s) { toast('Stock data not found for ' + ticker, 'error'); return; }
+
+  // Compute market-specific sector means
+  var pool = s.market === 'UK' ? (typeof UK_STOCKS !== 'undefined' ? UK_STOCKS : [])
+           : s.market === 'US' ? (typeof US_STOCKS !== 'undefined' ? US_STOCKS : [])
+           : (typeof STOCKS !== 'undefined' ? STOCKS : []);
+  var means = typeof gcComputeSectorMeans === 'function' ? gcComputeSectorMeans(pool) : {};
+  var result = typeof gcScoreStock === 'function' ? gcScoreStock(s, means) : null;
+
+  if (!result) { toast('Could not compute Greatness Score for ' + ticker, 'error'); return; }
+
+  var sym = s.market === 'US' ? '$' : s.market === 'UK' ? '£' : '₦';
+  var mktLabel = s.market === 'UK' ? '🇬🇧 FTSE 100' : s.market === 'US' ? '🇺🇸 NYSE/NASDAQ' : '🇳🇬 NGX';
+  var decColor = result.greatnessScore === 100 ? 'var(--green)' : result.greatnessScore >= 83 ? 'var(--green)' : result.greatnessScore >= 67 ? 'var(--amber)' : 'var(--red)';
+
+  var overlay = document.createElement('div');
+  overlay.className = 'mp-modal-overlay';
+  overlay.id = 'gc-scorecard-overlay';
+
+  var criteriaHtml = result.criteria.map(function(c) {
+    var icon = c.pass ? '✓' : c.estimated ? '~' : '✗';
+    var color = c.pass ? 'var(--green)' : c.estimated ? 'var(--amber)' : 'var(--red)';
+    var bg    = c.pass ? 'rgba(5,150,105,.07)' : c.estimated ? 'rgba(217,119,6,.07)' : 'rgba(220,38,38,.07)';
+    var thr   = c.direction === 'above' ? '≥' + c.threshold + c.unit : '≤' + c.threshold + c.unit;
+    var valStr  = c.value > 0 ? c.value.toFixed(1) + c.unit : 'N/A';
+    var meanStr = c.mean !== null ? 'Sector avg: ' + c.mean.toFixed(1) + c.unit : 'No sector avg';
+    return '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;background:' + bg + ';margin-bottom:6px">'
+      + '<span style="font-size:15px;font-weight:800;color:' + color + ';width:18px;flex-shrink:0;margin-top:1px">' + icon + '</span>'
+      + '<div style="flex:1">'
+      + '<div style="font-size:12px;font-weight:700;color:var(--text)">' + c.label + ' <span style="font-weight:400;color:var(--text3);font-size:11px">(' + thr + ')</span></div>'
+      + '<div style="font-size:11px;color:var(--text3);margin-top:2px">'
+      + '<strong style="color:' + color + '">' + valStr + '</strong> · ' + meanStr
+      + (c.estimated ? ' <span style="color:var(--amber)">(estimated)</span>' : '') + '</div>'
+      + '</div></div>';
+  }).join('');
+
+  overlay.innerHTML = '<div class="mp-modal" style="max-width:520px">'
+    + '<div class="mp-modal-hdr">'
+    + '<div>'
+    + '<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:var(--text)">⭐ Great Company Score — ' + s.t + '</div>'
+    + '<div style="font-size:11px;color:var(--text3);margin-top:2px">' + s.n + ' · ' + s.sec + ' · ' + mktLabel + '</div>'
+    + '</div>'
+    + '<button class="mp-modal-close" data-modal="gc-scorecard-overlay" style="background:transparent;border:none;font-size:20px;color:var(--text3);cursor:pointer">✕</button>'
+    + '</div>'
+    + '<div class="mp-modal-body">'
+    // Score summary
+    + '<div style="display:flex;align-items:center;gap:16px;background:var(--bg3);border-radius:12px;padding:16px;margin-bottom:16px">'
+    + '<div style="width:80px;height:80px;border-radius:50%;border:4px solid ' + decColor + ';display:flex;align-items:center;justify-content:center;flex-shrink:0">'
+    + '<div style="text-align:center"><div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:' + decColor + '">' + result.greatnessScore + '%</div>'
+    + '<div style="font-size:9px;color:var(--text3);font-weight:700">' + result.passed + '/6</div></div>'
+    + '</div>'
+    + '<div><div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:' + decColor + '">' + result.decision + '</div>'
+    + '<div style="font-size:11px;color:var(--text3);margin-top:4px;line-height:1.6">Price: ' + sym + s.price.toLocaleString() + ' · P/E ' + s.pe + 'x · ROE ' + s.roe + '</div>'
+    + '<div style="font-size:10px;color:var(--text3);margin-top:2px">Compared against <strong>' + (pool.length) + ' ' + (s.market || 'NGX') + ' sector peers</strong></div>'
+    + '</div></div>'
+    // Criteria breakdown
+    + '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">6-Factor Breakdown</div>'
+    + criteriaHtml
+    // Methodology note
+    + '<div style="background:rgba(26,86,219,.06);border-radius:8px;padding:10px 12px;margin-top:12px;font-size:10px;color:var(--text3);line-height:1.7">'
+    + '📋 <strong style="color:var(--text)">Methodology:</strong> Great Company Strategy by JJ (Robotify Technologies). '
+    + 'Each criterion must beat both the absolute threshold AND its sector average among ' + (s.market || 'NGX') + ' peers. '
+    + '100% = Strong BUY · 83% = BUY · 67% = HOLD · &lt;67% = Do Not Invest'
+    + '</div>'
+    + '</div></div>';
+
+  document.body.appendChild(overlay);
+}
+
+
 // Based on: "Effective Investment Strategy: Understanding the Building
 // Blocks for Implementation" by Japheth Jev, Robotify Technologies
 // ══════════════════════════════════════════════════════════════════════
