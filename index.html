@@ -9576,6 +9576,11 @@ US_STOCKS = US_STOCKS.concat([
 {t:"NDSN",n:"Nordson Corporation",sec:"Industrial",price:225.5,pe:28.5,dy:1.2,div:2.706,mc:"$13.5B",eps:"7.912",roe:"28%",sig:"BUY",rev:"$2.75B",pat:"$474M",npm:"17.2%",de:"0.5x",ebitda:"$845M",fcf:"$688M",revy:"+3%",paty:"+5%",ytd:8,chg:"+0.4%",market:"US",currency:"USD",cap:"mid"},
 {t:"NEO",n:"NeoGenomics Inc",sec:"Healthcare",price:18.5,pe:0,dy:0,div:0,mc:"$1.98B",eps:"-0.45",roe:"-5%",sig:"BUY",rev:"$688M",pat:"-$50M",npm:"-7.3%",de:"0.3x",ebitda:"$78M",fcf:"$48M",revy:"+10%",paty:"N/M",ytd:10,chg:"+0.4%",market:"US",currency:"USD",cap:"small"},
 {t:"NETI",n:"Eneti Inc",sec:"Industrial",price:12.5,pe:22.5,dy:2.5,div:0.313,mc:"$448M",eps:"0.556",roe:"8%",sig:"HOLD",rev:"$148M",pat:"$12.5M",npm:"8.4%",de:"0.8x",ebitda:"$48M",fcf:"$32M",revy:"+5%",paty:"+8%",ytd:5,chg:"+0.2%",market:"US",currency:"USD",cap:"small"},
+{t:"NVEI",n:"Nuvei Corporation",sec:"Technology",price:38.5,pe:22.5,dy:0,div:0,mc:"$5.8B",eps:"1.711",roe:"8%",sig:"BUY",rev:"$1.28B",pat:"$220M",npm:"17.2%",de:"0.3x",ebitda:"$388M",fcf:"$315M",revy:"+15%",paty:"+18%",ytd:12,chg:"+0.5%",market:"US",currency:"USD",cap:"mid"},
+{t:"OFLX",n:"Omega Flex Inc",sec:"Industrial",price:78.5,pe:22.5,dy:2.5,div:1.963,mc:"$698M",eps:"3.489",roe:"N/M",sig:"BUY",rev:"$148M",pat:"$31M",npm:"20.9%",de:"0x",ebitda:"$48M",fcf:"$38M",revy:"+5%",paty:"+8%",ytd:5,chg:"+0.2%",market:"US",currency:"USD",cap:"small"},
+{t:"NXST",n:"Nexstar Media Group",sec:"Media",price:155.5,pe:12.5,dy:3.5,div:5.443,mc:"$4.85B",eps:"12.44",roe:"18%",sig:"BUY",rev:"$5.25B",pat:"$388M",npm:"7.4%",de:"2.5x",ebitda:"$1.88B",fcf:"$1.28B",revy:"+5%",paty:"+8%",ytd:8,chg:"+0.4%",market:"US",currency:"USD",cap:"mid"},
+{t:"NYMT",n:"New York Mortgage Trust",sec:"Real Estate",price:8.5,pe:12.5,dy:12.5,div:1.063,mc:"$1.58B",eps:"0.68",roe:"5%",sig:"HOLD",rev:"$248M",pat:"$85M",npm:"34.3%",de:"3.5x",ebitda:"$145M",fcf:"$108M",revy:"+3%",paty:"+5%",ytd:3,chg:"+0.2%",market:"US",currency:"USD",cap:"small"},
+{t:"OMAB",n:"Grupo Aeroportuario del Centro",sec:"Industrial",price:75.5,pe:12.5,dy:6.5,div:4.908,mc:"$2.55B",eps:"6.04",roe:"35%",sig:"BUY",rev:"$695M",pat:"$204M",npm:"29.4%",de:"0.3x",ebitda:"$448M",fcf:"$335M",revy:"+8%",paty:"+12%",ytd:8,chg:"+0.4%",market:"US",currency:"USD",cap:"mid"}
 ]);
 
 // ══════════════════════════════════════════════════════════════════════
@@ -15424,10 +15429,19 @@ function mpAnalyserSaveToPortfolio() {
       action: 'buy', qty: h.qty, price: h.avgCost,
       tradeDate: h.purchaseDate, trigger: 'upload'
     });
-  ,
-{t:"NVEI",n:"Nuvei Corporation",sec:"Technology",price:38.5,pe:22.5,dy:0,div:0,mc:"$5.8B",eps:"1.711",roe:"8%",sig:"BUY",rev:"$1.28B",pat:"$220M",npm:"17.2%",de:"0.3x",ebitda:"$388M",fcf:"$315M",revy:"+15%",paty:"+18%",ytd:12,chg:"+0.5%",market:"US",currency:"USD",cap:"mid"},
-{t:"OFLX",n:"Omega Flex Inc",sec:"Industrial",price:78.5,pe:22.5,dy:2.5,div:1.963,mc:"$698M",eps:"3.489",roe:"N/M",sig:"BUY",rev:"$148M",pat:"$31M",npm:"20.9%",de:"0x",ebitda:"$48M",fcf:"$38M",revy:"+5%",paty:"+8%",ytd:5,chg:"+0.2%",market:"US",currency:"USD",cap:"small"},
-{t:"NXST",n:"Nexstar Media Group",sec:"Media",price:155.5,pe:12.5,dy:3.5,div:5.443,mc:"$4.85B",eps:"12.44",roe:"18%",sig:"BUY",rev:"$5.25B",pat:"$388M",npm:"7.4%",de:"2.5x",ebitda:"$1.88B",fcf:"$1.28B",revy:"+5%",paty:"+8%",ytd:8,chg:"+0.4%",market:"US",currency:"USD",cap:"mid"},
-{t:"NYMT",n:"New York Mortgage Trust",sec:"Real Estate",price:8.5,pe:12.5,dy:12.5,div:1.063,mc:"$1.58B",eps:"0.68",roe:"5%",sig:"HOLD",rev:"$248M",pat:"$85M",npm:"34.3%",de:"3.5x",ebitda:"$145M",fcf:"$108M",revy:"+3%",paty:"+5%",ytd:3,chg:"+0.2%",market:"US",currency:"USD",cap:"small"},
-{t:"OMAB",n:"Grupo Aeroportuario del Centro",sec:"Industrial",price:75.5,pe:12.5,dy:6.5,div:4.908,mc:"$2.55B",eps:"6.04",roe:"35%",sig:"BUY",rev:"$695M",pat:"$204M",npm:"29.4%",de:"0.3x",ebitda:"$448M",fcf:"$335M",revy:"+8%",paty:"+12%",ytd:8,chg:"+0.4%",market:"US",currency:"USD",cap:"mid"}
-]);
+  });
+
+  mpSaveAll(all);
+  toast('✓ Portfolio "' + name.trim() + '" saved to My Portfolio with ' + portHoldings.length + ' holdings', 'success');
+
+  // Close analyser and switch to portfolio view
+  window._mpSkipReload = true;
+  renderMyPortfolioModule();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// END PORTFOLIO ANALYSER
+// ══════════════════════════════════════════════════════════════════════
+</script>
+</body>
+</html>
