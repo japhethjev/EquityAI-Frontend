@@ -3186,7 +3186,7 @@ var SIGNAL_ENGINE = {
           // Re-render My Portfolio if open — so P&L reflects fresh US prices
           var mpTab = document.getElementById('dtab-myportfolio');
           if (mpTab && mpTab.classList.contains('active') && typeof renderMyPortfolioModule === 'function') {
-            setTimeout(renderMyPortfolioModule, 300);
+            setTimeout(mpAutoRerender, 300);
           }
         }
       })
@@ -3344,7 +3344,7 @@ var SIGNAL_ENGINE = {
           // Re-render My Portfolio if open — so P&L reflects fresh prices
           var mpTab = document.getElementById('dtab-myportfolio');
           if (mpTab && mpTab.classList.contains('active') && typeof renderMyPortfolioModule === 'function') {
-            setTimeout(renderMyPortfolioModule, 300);
+            setTimeout(mpAutoRerender, 300);
           }
 
           // Update market strip — use server data if valid, otherwise compute locally from STOCKS
@@ -12921,7 +12921,7 @@ function mpLoadFromSupabase(retryCount) {
       try { localStorage.setItem(MP_KEY, JSON.stringify(remote)); } catch(e){}
       console.log('[Portfolio] ✓ Loaded', remote.length, 'portfolio(s) from Supabase');
       var tab = document.getElementById('dtab-myportfolio');
-      if (tab && tab.classList.contains('active')) renderMyPortfolioModule();
+      if (tab && tab.classList.contains('active')) mpAutoRerender();
     })
     .catch(function(e){
       console.error('[Portfolio] Supabase load exception:', e.message);
@@ -15142,27 +15142,61 @@ function gcDeleteSavedScreen(screenId) {
 // Lives inside My Portfolio tab
 // ══════════════════════════════════════════════════════════════════════
 
+// ── Analyser state — survives re-renders ──────────────────────────────
+// The My Portfolio tab is re-rendered automatically whenever NGX/US prices
+// refresh or Supabase reloads. Without this state the analyser panel would
+// snap shut and discard results mid-use.
+window._mpAnalyserOpen        = window._mpAnalyserOpen        || false;
+window._mpAnalyserResultsHTML = window._mpAnalyserResultsHTML || '';
+window._mpAnalyserTab         = window._mpAnalyserTab         || 'csv';
+window._mpAnalyserPaste       = window._mpAnalyserPaste       || '';
+
+// Guarded re-render — used ONLY by automatic triggers (price polls, Supabase
+// load). Skips the re-render while the analyser is open so the user's upload,
+// pasted text and results are never wiped underneath them. Manual user actions
+// still call renderMyPortfolioModule() directly.
+function mpAutoRerender() {
+  if (window._mpAnalyserOpen) {
+    console.log('[Portfolio] Auto re-render skipped — Portfolio Analyser is open');
+    return;
+  }
+  if (typeof renderMyPortfolioModule === 'function') renderMyPortfolioModule();
+}
+
+// Capture live analyser input before any re-render destroys the DOM
+function mpAnalyserCaptureState() {
+  var pasteEl = document.getElementById('mp-paste-input');
+  if (pasteEl) window._mpAnalyserPaste = pasteEl.value;
+  var resEl = document.getElementById('mp-analyser-results');
+  if (resEl && resEl.innerHTML.trim()) window._mpAnalyserResultsHTML = resEl.innerHTML;
+}
+
 function mpBuildAnalyserHTML() {
+  var isOpen = !!window._mpAnalyserOpen;
   return '<div class="mp-card" id="mp-analyser-card" style="margin-top:16px;border:1.5px solid rgba(26,86,219,.2);background:linear-gradient(135deg,rgba(26,86,219,.03),rgba(124,58,237,.03))">'
     + '<div class="mp-card-hdr">'
     + '<div><div class="mp-card-title">📤 Portfolio Analyser</div>'
     + '<div style="font-size:11px;color:var(--text3);margin-top:2px">Upload your existing portfolio · Backtest · Futuretest · Rebalance</div></div>'
-    + '<button onclick="mpToggleAnalyser()" id="mp-analyser-toggle" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">Upload Portfolio</button>'
+    + '<button onclick="mpToggleAnalyser()" id="mp-analyser-toggle" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">' + (isOpen ? '✕ Close' : 'Upload Portfolio') + '</button>'
     + '</div>'
-    + '<div id="mp-analyser-body" style="display:none">'
+    + '<div id="mp-analyser-body" style="display:' + (isOpen ? 'block' : 'none') + '">'
     + mpBuildAnalyserUploadUI()
     + '</div></div>';
 }
 
 function mpBuildAnalyserUploadUI() {
+  var tab      = window._mpAnalyserTab || 'csv';
+  var isCsv    = tab === 'csv';
+  var pasteVal = (window._mpAnalyserPaste || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  var cached   = window._mpAnalyserResultsHTML || '';
   return '<div id="mp-analyser-upload">'
     + '<div style="display:flex;gap:8px;margin-bottom:14px">'
-    + '<button onclick="mpAnalyserTab(\'csv\')" id="mp-atab-csv" class="btn btn-gold btn-sm" style="flex:1">📄 Upload CSV</button>'
-    + '<button onclick="mpAnalyserTab(\'paste\')" id="mp-atab-paste" class="btn btn-ghost btn-sm dark" style="flex:1">✏️ Paste Holdings</button>'
+    + '<button onclick="mpAnalyserTab(\'csv\')" id="mp-atab-csv" class="btn btn-sm ' + (isCsv?'btn-gold':'btn-ghost dark') + '" style="flex:1">📄 Upload CSV</button>'
+    + '<button onclick="mpAnalyserTab(\'paste\')" id="mp-atab-paste" class="btn btn-sm ' + (isCsv?'btn-ghost dark':'btn-gold') + '" style="flex:1">✏️ Paste Holdings</button>'
     + '</div>'
 
     // CSV upload
-    + '<div id="mp-atab-csv-body">'
+    + '<div id="mp-atab-csv-body" style="display:' + (isCsv?'block':'none') + '">'
     + '<div style="background:var(--bg3);border:2px dashed var(--border);border-radius:10px;padding:24px;text-align:center;margin-bottom:12px;cursor:pointer" onclick="document.getElementById(\'mp-csv-input\').click()">'
     + '<div style="font-size:32px;margin-bottom:8px">📄</div>'
     + '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">Click to upload CSV file</div>'
@@ -15173,26 +15207,40 @@ function mpBuildAnalyserUploadUI() {
     + '</div>'
 
     // Paste input
-    + '<div id="mp-atab-paste-body" style="display:none">'
+    + '<div id="mp-atab-paste-body" style="display:' + (isCsv?'none':'block') + '">'
     + '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">One stock per line: <strong>TICKER, QUANTITY, PURCHASE_PRICE</strong><br>Example: ZENITHBANK, 5000, 85.50</div>'
-    + '<textarea id="mp-paste-input" rows="8" placeholder="ZENITHBANK, 5000, 85.50&#10;DANGCEM, 1000, 950.00&#10;MTNN, 2000, 200.00&#10;SEPLAT, 500, 4500.00" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-family:DM Mono,monospace;font-size:12px;background:var(--bg);color:var(--text);resize:vertical;box-sizing:border-box"></textarea>'
+    + '<textarea id="mp-paste-input" rows="8" placeholder="ZENITHBANK, 5000, 85.50&#10;DANGCEM, 1000, 950.00&#10;MTNN, 2000, 200.00&#10;SEPLAT, 500, 4500.00" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-family:DM Mono,monospace;font-size:12px;background:var(--bg);color:var(--text);resize:vertical;box-sizing:border-box">' + pasteVal + '</textarea>'
     + '<button onclick="mpAnalyserParsePaste()" class="btn btn-gold" style="width:100%;margin-top:10px">Analyse Portfolio</button>'
     + '</div>'
 
-    + '<div id="mp-analyser-results"></div>'
+    + '<div id="mp-analyser-results">' + cached + '</div>'
     + '</div>';
 }
 
 function mpToggleAnalyser() {
+  var card = document.getElementById('mp-analyser-card');
   var body = document.getElementById('mp-analyser-body');
   var btn  = document.getElementById('mp-analyser-toggle');
-  if (!body || !btn) return;
-  var open = body.style.display === 'block';
-  body.style.display = open ? 'none' : 'block';
-  btn.textContent = open ? 'Upload Portfolio' : '✕ Close';
+  if (!body || !btn) {
+    console.warn('[Analyser] Panel not found in DOM — rebuilding My Portfolio');
+    window._mpAnalyserOpen = true;
+    if (typeof renderMyPortfolioModule === 'function') renderMyPortfolioModule();
+    return;
+  }
+  var isOpen = body.style.display !== 'none';
+  if (isOpen) mpAnalyserCaptureState();   // keep work before collapsing
+  window._mpAnalyserOpen = !isOpen;
+  body.style.display = isOpen ? 'none' : 'block';
+  btn.textContent    = isOpen ? 'Upload Portfolio' : '✕ Close';
+  if (!isOpen && card && card.scrollIntoView) {
+    setTimeout(function(){ card.scrollIntoView({ behavior:'smooth', block:'nearest' }); }, 60);
+  }
 }
 
 function mpAnalyserTab(tab) {
+  window._mpAnalyserTab = tab;
+  var pasteEl = document.getElementById('mp-paste-input');
+  if (pasteEl) window._mpAnalyserPaste = pasteEl.value;
   document.getElementById('mp-atab-csv-body').style.display  = tab === 'csv'   ? 'block' : 'none';
   document.getElementById('mp-atab-paste-body').style.display = tab === 'paste' ? 'block' : 'none';
   document.getElementById('mp-atab-csv').className   = 'btn btn-sm ' + (tab === 'csv'   ? 'btn-gold' : 'btn-ghost dark');
@@ -15219,6 +15267,7 @@ function mpAnalyserProcessText(text) {
   var lines = text.split('\n').map(function(l){ return l.trim(); }).filter(function(l){ return l && !l.startsWith('#'); });
   var holdings = [];
   var errors = [];
+  var unmatched = [];
 
   lines.forEach(function(line, idx) {
     // Support comma, semicolon, tab delimiters
@@ -15234,6 +15283,8 @@ function mpAnalyserProcessText(text) {
     // Look up stock data
     var stockData = (typeof STOCKS !== 'undefined' ? STOCKS : []).find(function(s){ return s.t === ticker; });
     if (!stockData && typeof US_STOCKS !== 'undefined') stockData = US_STOCKS.find(function(s){ return s.t === ticker; });
+    if (!stockData && typeof UK_STOCKS !== 'undefined') stockData = UK_STOCKS.find(function(s){ return s.t === ticker; });
+    if (!stockData) unmatched.push(ticker);
 
     if (!price && stockData) price = stockData.price; // fallback to current price if no purchase price given
 
@@ -15255,6 +15306,11 @@ function mpAnalyserProcessText(text) {
 
   if (errors.length) {
     toast('⚠️ ' + errors.length + ' line(s) skipped — check format', 'warning');
+  }
+  if (unmatched.length) {
+    toast('⚠️ Not in our NGX/US/UK universe: ' + unmatched.slice(0,4).join(', ')
+          + (unmatched.length > 4 ? ' +' + (unmatched.length-4) + ' more' : '')
+          + ' — shown without scores', 'warning');
   }
 
   mpAnalyserRunAnalysis(holdings);
@@ -15315,11 +15371,15 @@ function mpAnalyserRunAnalysis(holdings) {
   // Replacement suggestions — 83%+ GC + BUY signal, not already held
   var heldTickers = holdings.map(function(h){ return h.ticker; });
   // ── Market detection — support NGX, US, and mixed portfolios ─────
-  var ngxCount = holdings.filter(function(h){ return !h.stockData || h.stockData.market !== 'US'; }).length;
   var usCount  = holdings.filter(function(h){ return h.stockData && h.stockData.market === 'US'; }).length;
-  var isMixed  = ngxCount > 0 && usCount > 0;
-  var isUSPort = usCount > 0 && ngxCount === 0; // pure US only
-  var sym = isUSPort ? '$' : (holdings.some(function(h){ return h.stockData && h.stockData.market === 'UK'; }) && !isUSPort) ? '£' : '₦'; // default to NGN for mixed or pure NGX
+  var ukCount  = holdings.filter(function(h){ return h.stockData && h.stockData.market === 'UK'; }).length;
+  var ngxCount = holdings.length - usCount - ukCount;
+  var marketsUsed = (ngxCount>0?1:0) + (usCount>0?1:0) + (ukCount>0?1:0);
+  var isMixed  = marketsUsed > 1;
+  var isUSPort = usCount > 0 && ngxCount === 0 && ukCount === 0; // pure US
+  var isUKPort = ukCount > 0 && ngxCount === 0 && usCount === 0; // pure UK
+  // Headline currency follows the dominant market; per-holding symbols set below
+  var sym = isUSPort ? '$' : isUKPort ? '£' : '₦';
 
   // For mixed portfolios, tag each holding with its currency
   holdings.forEach(function(h) {
@@ -15329,8 +15389,10 @@ function mpAnalyserRunAnalysis(holdings) {
 
   // Replacement pool — show both markets for mixed portfolios
   var pool = [];
-  if (!isUSPort) pool = pool.concat(typeof STOCKS !== 'undefined' ? STOCKS : []);
-  if (isUSPort || isMixed) pool = pool.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
+  if (ngxCount > 0) pool = pool.concat(typeof STOCKS    !== 'undefined' ? STOCKS    : []);
+  if (usCount  > 0) pool = pool.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
+  if (ukCount  > 0) pool = pool.concat(typeof UK_STOCKS !== 'undefined' ? UK_STOCKS : []);
+  if (!pool.length) pool = (typeof STOCKS !== 'undefined' ? STOCKS : []);
   var replacements = pool.filter(function(s){
     return s._gcScore >= 83 && s.sig === 'BUY' && heldTickers.indexOf(s.t) === -1;
   }).sort(function(a,b){ return b._gcScore - a._gcScore; }).slice(0, 5);
@@ -15356,13 +15418,16 @@ function mpAnalyserRunAnalysis(holdings) {
   }
 
   // ── 5. RENDER RESULTS ─────────────────────────────────────────────
-  var sym = isUSPort ? '$' : (holdings.some(function(h){ return h.stockData && h.stockData.market === 'UK'; }) && !isUSPort) ? '£' : '₦';
   var html = '';
 
   // Mixed portfolio notice
   if (isMixed) {
     html += '<div style="background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.2);border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:11px;color:var(--amber)">';
-    html += '⚠️ <strong>Mixed portfolio detected</strong> — ' + ngxCount + ' NGX stock(s) and ' + usCount + ' US stock(s). P&L shown in respective currencies per holding.';
+    var _parts = [];
+    if (ngxCount) _parts.push(ngxCount + ' NGX');
+    if (usCount)  _parts.push(usCount  + ' US');
+    if (ukCount)  _parts.push(ukCount  + ' UK');
+    html += '⚠️ <strong>Mixed portfolio detected</strong> — ' + _parts.join(' · ') + ' holding(s). P&L shown in each holding\'s own currency; totals are indicative only.';
     html += '</div>';
   }
 
@@ -15457,6 +15522,7 @@ function mpAnalyserRunAnalysis(holdings) {
   html += '<div style="margin-top:14px"><button onclick="mpAnalyserSaveToPortfolio()" class="btn btn-gold" style="width:100%;justify-content:center;padding:12px;background:linear-gradient(135deg,#059669,#0e7490)">📈 Save to My Portfolio for Live P&L Tracking</button></div>';
 
   resultsEl.innerHTML = html;
+  window._mpAnalyserResultsHTML = html;   // survive automatic re-renders
   window._analyserFuture = futureMonths;
   window._analyserSym    = sym;
   window._analyserIsUS   = isUSPort;
