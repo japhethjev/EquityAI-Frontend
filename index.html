@@ -15217,6 +15217,38 @@ function mpBuildAnalyserUploadUI() {
     + '</div>';
 }
 
+// Build stamp — confirms which version of index.html is actually live
+window.EQUITYAI_BUILD = 'analyser-fix-2026-07-23';
+console.log('%c[EquityAI] Build: ' + window.EQUITYAI_BUILD, 'color:#1a56db;font-weight:700');
+
+// Console diagnostic — run mpAnalyserDiagnose() in DevTools to see what's wrong
+function mpAnalyserDiagnose() {
+  var card = document.getElementById('mp-analyser-card');
+  var body = document.getElementById('mp-analyser-body');
+  var btn  = document.getElementById('mp-analyser-toggle');
+  var r = {
+    build:            window.EQUITYAI_BUILD || '(OLD BUILD — fix not deployed)',
+    cardInDOM:        !!card,
+    bodyInDOM:        !!body,
+    buttonInDOM:      !!btn,
+    duplicateCards:   document.querySelectorAll('#mp-analyser-card').length,
+    bodyDisplay:      body ? (body.style.display || '(unset)') : 'n/a',
+    openStateFlag:    !!window._mpAnalyserOpen,
+    toggleFnType:     typeof window.mpToggleAnalyser,
+    autoGuardPresent: typeof window.mpAutoRerender === 'function',
+    ukLookupPresent:  typeof UK_STOCKS !== 'undefined'
+  };
+  if (btn) {
+    var rect = btn.getBoundingClientRect();
+    r.buttonSize = Math.round(rect.width) + 'x' + Math.round(rect.height);
+    var mid = document.elementFromPoint(rect.left + rect.width/2, rect.top + rect.height/2);
+    r.elementAtButtonCentre = mid ? (mid.id || mid.tagName + '.' + (mid.className||'')) : 'none';
+    r.buttonIsClickable = !!(mid && (mid === btn || btn.contains(mid)));
+  }
+  console.table(r);
+  return r;
+}
+
 function mpToggleAnalyser() {
   var card = document.getElementById('mp-analyser-card');
   var body = document.getElementById('mp-analyser-body');
