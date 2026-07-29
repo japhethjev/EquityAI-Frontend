@@ -7849,6 +7849,18 @@ function saveCurrentPortfolio() {
     toast('Generate a portfolio first, then save it.', 'error');
     return;
   }
+  // Must be signed in — the My Portfolio table is per-user
+  if (!currentUser || !currentUser.id) {
+    toast('⚠️ Please sign in to save this AI portfolio', 'error');
+    return;
+  }
+  // Validate the generated portfolio has the fields we rely on below
+  var _d0 = _portData;
+  if (!_d0.portfolio || !_d0.portfolio.length || !_d0.weights || !_d0.weights.length) {
+    toast('⚠️ This portfolio has no holdings to save — regenerate and try again', 'error');
+    console.error('[AI Portfolio] Save aborted — missing portfolio/weights', _d0);
+    return;
+  }
   var d = _portData;
   var name = d.ai && d.ai.portfolioTitle ? d.ai.portfolioTitle : 'My Portfolio ' + new Date().toLocaleDateString('en-NG');
   var entry = {
@@ -7948,28 +7960,33 @@ function saveCurrentPortfolio() {
 
     Promise.all([insertPromise].concat(deactivatePromises)).then(function(results) {
       var failed = results.filter(function(r){ return r && r.error; });
+      // Always update local cache so the portfolio is usable this session
+      _mpCache = mpList;
+      try { localStorage.setItem(MP_KEY, JSON.stringify(mpList)); } catch(e) {}
+
       if (failed.length) {
-        console.error('[AI Portfolio] Supabase save failed:', failed[0].error.message);
-        toast('⚠️ Portfolio saved locally but cloud sync failed. Refresh to retry.', 'error');
-        // Still update cache and navigate
-        _mpCache = mpList;
-        try { localStorage.setItem(MP_KEY, JSON.stringify(mpList)); } catch(e) {}
+        var msg = failed[0].error.message || 'unknown error';
+        var code = failed[0].error.code || '';
+        console.error('[AI Portfolio] Supabase save FAILED:', code, msg, failed[0].error);
+        // Column-missing errors mean the DB schema is out of date — tell the user plainly
+        if (/column|schema|does not exist|PGRST/i.test(msg + code)) {
+          toast('❌ Cloud save failed — database needs updating (' + (code || 'schema') + '). It works this session but will not sync until fixed.', 'error');
+        } else {
+          toast('❌ Cloud save failed: ' + msg + ' — saved on this device only', 'error');
+        }
       } else {
         console.log('[AI Portfolio] ✓ Saved to Supabase:', mpEntry.name);
-        // Update cache from Supabase authoritative response
-        _mpCache = mpList;
-        try { localStorage.setItem(MP_KEY, JSON.stringify(mpList)); } catch(e) {}
+        toast('✓ Portfolio saved — opening in 📈 My Portfolio tab with live P&L tracking', 'success');
       }
-      // Navigate to My Portfolio tab now that save is confirmed
-      toast('✓ Portfolio saved — opening in 📈 My Portfolio tab with live P&L tracking', 'success');
+      // Navigate to My Portfolio tab either way
       setTimeout(function() {
         var mpTab = document.getElementById('tab-myportfolio');
         if (mpTab) mpTab.click();
       }, 400);
       if (document.getElementById('dtab-myspace') && document.getElementById('dtab-myspace').classList.contains('active')) renderMyDashboard();
     }).catch(function(e) {
-      console.error('[AI Portfolio] Save error:', e.message);
-      toast('⚠️ Save error — ' + e.message, 'error');
+      console.error('[AI Portfolio] Save error:', e.message, e);
+      toast('❌ Save error — ' + e.message, 'error');
       _mpCache = mpList;
       try { localStorage.setItem(MP_KEY, JSON.stringify(mpList)); } catch(e2) {}
       setTimeout(function() {
@@ -14017,10 +14034,22 @@ function mpRenderHistoryView() {
 }
 
 function mpOpenCreateModal() {
-  var overlay = document.createElement('div');
-  overlay.className = 'mp-modal-overlay';
-  overlay.id = 'mp-create-overlay';
-  overlay.innerHTML = '<div class="mp-modal">'
+  try {
+    // Guard: user must be signed in with a paid plan to create portfolios
+    if (!currentUser || !currentUser.id) {
+      toast('Please sign in to create a portfolio', 'error');
+      return;
+    }
+    // Remove any stale overlay left behind by a previous failed open
+    var stale = document.getElementById('mp-create-overlay');
+    if (stale) stale.remove();
+
+    var overlay = document.createElement('div');
+    overlay.className = 'mp-modal-overlay';
+    overlay.id = 'mp-create-overlay';
+    // Inline the critical positioning so a missing/stale stylesheet can't hide it
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
+    overlay.innerHTML = '<div class="mp-modal" style="background:var(--bg2,#fff);border-radius:16px;max-width:540px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
     + '<div class="mp-modal-hdr">'
     + '<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:var(--text)">+ Create New Portfolio</div>'
     + '<button class="mp-modal-close" data-modal="mp-create-overlay" style="background:transparent;border:none;font-size:20px;color:var(--text3);cursor:pointer">✕</button>'
@@ -14035,10 +14064,20 @@ function mpOpenCreateModal() {
     + '<button onclick="mpCreatePortfolio()" class="btn btn-gold" style="flex:1">✓ Create Portfolio</button>'
     + '<button class="mp-modal-close btn btn-ghost dark" data-modal="mp-create-overlay" style="flex:1">Cancel</button>'
     + '</div></div></div>';
-  document.body.appendChild(overlay);
+    document.body.appendChild(overlay);
+    // Click the dimmed backdrop to dismiss
+    overlay.addEventListener('click', function(ev){ if (ev.target === overlay) overlay.remove(); });
+    // Focus the name field so the user can type immediately
+    var nameEl = document.getElementById('mp-create-name');
+    if (nameEl) setTimeout(function(){ nameEl.focus(); }, 50);
+  } catch (err) {
+    console.error('[Portfolio] mpOpenCreateModal failed:', err);
+    toast('⚠️ Could not open the create dialog: ' + err.message, 'error');
+  }
 }
 
 function mpCreatePortfolio() {
+  try {
   var name = (document.getElementById('mp-create-name').value || '').trim();
   var curr = document.getElementById('mp-create-curr').value || 'NGN';
   var desc = (document.getElementById('mp-create-desc').value || '').trim();
@@ -14062,8 +14101,12 @@ function mpCreatePortfolio() {
 
   var overlay = document.getElementById('mp-create-overlay');
   if (overlay) overlay.remove();
-  toast('✓ Portfolio "' + name + '" created', 'success');
-  renderMyPortfolioModule();
+    toast('✓ Portfolio "' + name + '" created', 'success');
+    renderMyPortfolioModule();
+  } catch (err) {
+    console.error('[Portfolio] mpCreatePortfolio failed:', err);
+    toast('⚠️ Could not create portfolio: ' + err.message, 'error');
+  }
 }
 
 function mpSetActive(portId) {
@@ -15218,7 +15261,37 @@ function mpBuildAnalyserUploadUI() {
 }
 
 // Build stamp — confirms which version of index.html is actually live
-window.EQUITYAI_BUILD = 'analyser-fix-2026-07-23';
+window.EQUITYAI_BUILD = 'portfolio-fix-2026-07-23b';
+
+// Full portfolio diagnostic — run mpPortfolioDiagnose() in DevTools
+function mpPortfolioDiagnose() {
+  var sb = (typeof getSupabase === 'function') ? getSupabase() : null;
+  var r = {
+    build:              window.EQUITYAI_BUILD,
+    signedIn:           !!(currentUser && currentUser.id),
+    plan:               currentUser ? currentUser.plan : '(not signed in)',
+    supabaseReady:      !!sb,
+    openCreateModalFn:  typeof window.mpOpenCreateModal,
+    createPortfolioFn:  typeof window.mpCreatePortfolio,
+    saveAIPortfolioFn:  typeof window.saveCurrentPortfolio,
+    mpSaveAllFn:        typeof window.mpSaveAll,
+    cachedPortfolios:   (typeof _mpCache !== 'undefined' && _mpCache) ? _mpCache.length : 'null',
+    generatedPortfolio: (typeof _portData !== 'undefined' && _portData) ? 'ready' : 'none'
+  };
+  console.table(r);
+  if (!r.signedIn) console.warn('⚠️ Not signed in — creating/saving portfolios requires login');
+  if (!r.supabaseReady) console.warn('⚠️ Supabase not connected — saves will only persist locally');
+  // Live probe: does a trivial upsert to user_portfolios succeed?
+  if (sb && currentUser && currentUser.id) {
+    console.log('Probing user_portfolios table schema...');
+    sb.from('user_portfolios').select('id,name,currency,description,holdings,active,is_ai,ai_backtest,ai_forward,created_at,updated_at').limit(1)
+      .then(function(res){
+        if (res.error) console.error('❌ Table probe FAILED — likely missing column:', res.error.message, res.error.code);
+        else console.log('✓ user_portfolios table has all expected columns');
+      });
+  }
+  return r;
+}
 console.log('%c[EquityAI] Build: ' + window.EQUITYAI_BUILD, 'color:#1a56db;font-weight:700');
 
 // Console diagnostic — run mpAnalyserDiagnose() in DevTools to see what's wrong
