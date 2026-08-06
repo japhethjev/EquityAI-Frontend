@@ -2381,7 +2381,6 @@ var STOCKS=[
 {t:"CORNERST",n:"Cornerstone Insurance",sec:"Insurance",price:6.0,chg:"+9.97%",ytd:20,pe:5.0,dy:0,div:0,mc:"₦109B",eps:"1.2",roe:"12%",sig:"HOLD",rev:"₦22B",pat:"₦21.8B",ebitda:"₦28B",npm:"99%",gpm:"65%",de:"0.3x",cr:"2.0x",roa:"4.1%",bv:"₦5",fcf:"₦12B",revy:"+22%",paty:"+45%",thesis:"Revenue ₦22B. MCap ₦109B. Life and general insurance. Beneficiary of CBN-driven insurance sector reforms. P/E 5.0x.",bars:[["Insurance sector reform",74,"bf-g"],["P/E 5.0x",80,"bf-t"],["Revenue growth",68,"bf-p"],["Sector tailwind",72,"bf-a"]]},
 {t:"LINKASSURE",n:"Linkage Assurance",sec:"Insurance",price:1.82,chg:"+2.29%",ytd:8,pe:3.9,dy:0,div:0,mc:"₦33.3B",eps:"0.46",roe:"9%",sig:"BUY",rev:"₦8B",pat:"₦8.5B",ebitda:"₦10B",npm:"106%",gpm:"60%",de:"0.2x",cr:"2.1x",roa:"3.0%",bv:"₦5.1",fcf:"₦4B",revy:"+15%",paty:"+20%",thesis:"Small-cap insurer. Revenue ₦8B. MCap ₦33B. Low leverage D/E 0.2x. Growth play on rising insurance penetration.",bars:[["Low leverage",82,"bf-g"],["P/E 3.9x",82,"bf-t"],["Insurance growth",65,"bf-p"],["Revenue growth",60,"bf-a"]]},
 {t:"GUINEAINS",n:"Guinea Insurance",sec:"Insurance",price:1.11,chg:"0.00%",ytd:5,pe:4.0,dy:0,div:0,mc:"₦8.8B",eps:"0.28",roe:"8%",sig:"HOLD",rev:"₦6B",pat:"₦2.2B",ebitda:"₦3B",npm:"36.7%",gpm:"45%",de:"0.3x",cr:"1.7x",roa:"2.5%",bv:"₦3.5",fcf:"₦1.5B",revy:"+12%",paty:"+18%",thesis:"Micro-cap insurer. Revenue ₦6B. MCap ₦8.8B. Speculative play on insurance sector penetration growth in Nigeria.",bars:[["Insurance tailwind",62,"bf-g"],["Low price entry",70,"bf-t"],["Revenue growth",55,"bf-p"],["Sector reform",60,"bf-a"]]},
-{t:"UNIVERSAL",n:"Universal Insurance",sec:"Insurance",price:0.20,chg:"0.00%",ytd:0,pe:5.0,dy:0,div:0,mc:"₦7.2B",eps:"0.04",roe:"8%",sig:"WATCH",rev:"₦12B",pat:"₦2.1B",ebitda:"₦3B",npm:"17.5%",gpm:"45%",de:"0.3x",cr:"1.8x",roa:"2.1%",bv:"₦0.50",fcf:"₦1.2B",revy:"+18%",paty:"+12%",thesis:"Universal Insurance Plc — small general insurer on NGX. Gross premium income ₦12B. P/E 5x. Low price stock. CBN/NAICOM recapitalisation compliance in progress.",bars:[["Compliance drive",62,"bf-g"],["Premium growth",55,"bf-t"],["P/E 5x",68,"bf-p"],["NAICOM reform",60,"bf-a"]]},
 {t:"INTENEGINS",n:"International Energy Insurance",sec:"Insurance",price:2.86,chg:"0.00%",ytd:8,pe:5.2,dy:0,div:0,mc:"₦3.3B",eps:"0.5",roe:"9%",sig:"HOLD",rev:"₦4B",pat:"₦0.6B",ebitda:"₦1B",npm:"15%",gpm:"38%",de:"0.4x",cr:"1.5x",roa:"2.0%",bv:"₦7.2",fcf:"₦0.5B",revy:"+10%",paty:"+15%",thesis:"Niche energy sector insurer. Revenue ₦4B. MCap ₦3.3B. Specialises in oil & gas insurance — growing with Nigerian energy sector.",bars:[["Energy insurance niche",68,"bf-g"],["Oil sector growth",70,"bf-t"],["Revenue growth",55,"bf-p"],["Sector specialist",65,"bf-a"]]},
 {t:"FTGINSURE",n:"FTG Insurance",sec:"Insurance",price:1.14,chg:"0.00%",ytd:5,pe:3.5,dy:0,div:0,mc:"₦13.6B",eps:"0.3",roe:"8%",sig:"HOLD",rev:"₦5B",pat:"₦3.9B",ebitda:"₦5B",npm:"78%",gpm:"55%",de:"0.2x",cr:"1.9x",roa:"2.5%",bv:"₦3.8",fcf:"₦2B",revy:"+12%",paty:"+18%",thesis:"Revenue ₦5B. MCap ₦13.6B. P/E 3.5x. Speculative insurance play. Low entry price and low leverage.",bars:[["P/E 3.5x",80,"bf-g"],["Low leverage",78,"bf-t"],["Insurance growth",60,"bf-p"],["Revenue growth",58,"bf-a"]]},
 
@@ -3317,20 +3316,36 @@ var SIGNAL_ENGINE = {
         var prices = data.prices;
         var updated = 0;
         if (typeof STOCKS === 'undefined') return;
+        // Track which tickers actually received a live price this cycle so we can
+        // tell a genuinely fresh figure from a stale hardcoded seed value.
+        window._ngxLiveTickers = window._ngxLiveTickers || {};
         STOCKS.forEach(function(s) {
           var p = prices[s.t];
           if (!p || !p.price || p.price <= 0) return;
           s.price = p.price;
+          s._priceLive = true;                 // this stock has a real live price
+          window._ngxLiveTickers[s.t] = { price: p.price, at: data.updatedAt || 'today' };
           if (p.chgPct !== undefined && p.chgPct !== null)
             s.chg = (p.chgPct >= 0 ? '+' : '') + p.chgPct.toFixed(2) + '%';
           updated++;
         });
+        // Log any stocks the server did NOT return a price for — these keep seed values
+        var _missing = STOCKS.filter(function(s){ return !s._priceLive; }).map(function(s){ return s.t; });
+        if (_missing.length) console.warn('[NGX Prices] ' + _missing.length + ' stock(s) missing from EODHD feed — showing seed price: ' + _missing.join(', '));
+        // Persist a coverage snapshot for mpPriceCoverage() audit
+        window._ngxCoverage = {
+          total:    STOCKS.length,
+          live:     updated,
+          missing:  _missing,
+          asOf:     data.updatedAt || 'today',
+          fetchedAt: new Date().toISOString()
+        };
         if (updated > 0) {
           _ngxPricesReady = true;
           // Update portfolio tab price status indicator
           var _psi = document.getElementById('port-price-status');
           if (_psi) _psi.innerHTML = '✅ Live NGX prices loaded from EODHD · ' + (data.updatedAt ? new Date(data.updatedAt).toLocaleDateString('en-NG',{day:'numeric',month:'short',year:'numeric'}) : 'today');
-          console.log('[NGX Prices] ✓ Applied ' + updated + '/148 fresh NGX prices from EODHD (as of ' + (data.updatedAt || 'today') + ')');
+          console.log('[NGX Prices] ✓ Applied ' + updated + '/' + STOCKS.length + ' fresh NGX prices from EODHD (as of ' + (data.updatedAt || 'today') + ')');
           updatePriceDateSubtitle(data.updatedAt, 'NGX');
           if (typeof ALL_STOCKS !== 'undefined') ALL_STOCKS = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []).concat(typeof UK_STOCKS !== 'undefined' ? UK_STOCKS : []);
           if (!visibleStocks || visibleStocks.length === 0) visibleStocks = STOCKS.slice();
@@ -3796,6 +3811,11 @@ function renderDetailPanel(idx) {
   var isUK  = (s.market === 'UK');
   var sym   = isUS ? '$' : isUK ? '£' : '&#8358;';
   var mktLbl = isUS ? 'NYSE/NASDAQ · Yahoo Finance · Jul 2026' : isUK ? 'LSE · Yahoo Finance · Jul 2026' : 'NGX Official + EODHD · Jul 2026';
+  // For NGX stocks that never received a live price this session, flag the shown
+  // figure as an indicative seed value rather than a live quote.
+  if (!isUS && !isUK && !s._priceLive && typeof _ngxPricesReady !== 'undefined' && _ngxPricesReady) {
+    mktLbl = 'NGX · ⚠️ indicative price (not in live feed)';
+  }
   var tab = activePanelTab[idx] || 'overview';  // Default to Overview tab
   var posChg = s.chg ? !s.chg.startsWith('-') : true;
 
@@ -4040,6 +4060,20 @@ function _initDashboardCore(fresh) {
 
   // Schedule periodic server-fetch checks (every 30 min — lightweight HTTP GET, not Claude calls)
   scheduleServerFetchPolling();
+
+  // ── Fetch live prices immediately on load for EVERY user, regardless of plan ──
+  // Prices are not a paid feature — free and pro users alike should see today's
+  // NGX/US closing prices from EODHD/Yahoo the moment the dashboard opens, rather
+  // than waiting for the 30-min poll or a tab switch. Signals remain plan-gated
+  // above; this is purely the price layer.
+  (function() {
+    var _u = SIGNAL_ENGINE.SERVER_URL;
+    if (_u) {
+      SIGNAL_ENGINE.fetchNGXPrices(_u);
+      SIGNAL_ENGINE.fetchUSPrices(_u);
+      if (typeof SIGNAL_ENGINE.fetchUKPrices === 'function') SIGNAL_ENGINE.fetchUKPrices(_u);
+    }
+  })();
 }
 
 function injectSignalEngineButton(plan) {
@@ -15219,6 +15253,48 @@ function mpAnalyserCaptureState() {
 }
 
 // Full portfolio diagnostic — run mpPortfolioDiagnose() in DevTools
+// Full NGX daily-coverage audit — run mpPriceCoverage() in DevTools.
+// Confirms how many of the 148 NGX stocks received a LIVE price from the
+// server's EODHD feed today, and lists exactly which ones did not.
+function mpPriceCoverage() {
+  var cov = window._ngxCoverage;
+  if (!cov) {
+    console.warn('No NGX price fetch has completed yet this session. Wait a moment after load, or check the Railway server is reachable at ' + (SIGNAL_ENGINE ? SIGNAL_ENGINE.SERVER_URL : '?') + '/api/prices');
+    return null;
+  }
+  var pct = Math.round(cov.live / cov.total * 100);
+  console.log('%c[NGX Coverage] ' + cov.live + '/' + cov.total + ' stocks got a LIVE EODHD price (' + pct + '%) — as of ' + cov.asOf,
+              'color:' + (cov.live === cov.total ? '#16a34a' : '#d97706') + ';font-weight:700');
+  if (cov.missing.length) {
+    console.warn('%c' + cov.missing.length + ' stock(s) NOT in the feed (showing seed prices):', 'color:#d97706;font-weight:700');
+    console.warn(cov.missing.join(', '));
+    console.log('→ These are a SERVER-side gap: the Railway /api/prices response did not include them. Fix is in signal-server.js (add/rename these EODHD symbols), not in the frontend.');
+  } else {
+    console.log('%c✓ All ' + cov.total + ' NGX stocks are on live EODHD prices — zero seed fallbacks.', 'color:#16a34a;font-weight:700');
+  }
+  return cov;
+}
+
+// Check a single ticker's price freshness — run mpPriceDiagnose('TIP') in DevTools
+function mpPriceDiagnose(ticker) {
+  ticker = (ticker || '').toUpperCase();
+  var s = (typeof ALL_STOCKS !== 'undefined' ? ALL_STOCKS : STOCKS).find(function(x){ return x.t === ticker; });
+  if (!s) { console.warn('Ticker ' + ticker + ' not found in the universe'); return null; }
+  var live = window._ngxLiveTickers && window._ngxLiveTickers[ticker];
+  var r = {
+    ticker:        ticker,
+    displayedPrice: s.price,
+    hasLivePrice:  !!s._priceLive,
+    liveFromEODHD: live ? live.price : '(not in feed)',
+    liveAsOf:      live ? live.at : 'n/a',
+    market:        s.market || 'NGX',
+    verdict:       s._priceLive ? '✓ Live price applied' : '⚠️ SEED PRICE — server did not return this ticker'
+  };
+  console.table(r);
+  if (!s._priceLive) console.warn('→ ' + ticker + ' is showing its hardcoded seed price (' + s.price + '). The server\'s /api/prices response does not include it — likely an EODHD coverage gap. This is a SERVER-side fix (add/rename the symbol in the price fetch list), not a frontend one.');
+  return r;
+}
+
 function mpPortfolioDiagnose() {
   var sb = (typeof getSupabase === 'function') ? getSupabase() : null;
   var r = {
