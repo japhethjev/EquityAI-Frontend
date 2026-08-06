@@ -3183,6 +3183,8 @@ var SIGNAL_ENGINE = {
           if (typeof _mktFilter !== 'undefined' && (_mktFilter === 'US' || _mktFilter === 'ALL')) {
             if (typeof buildStockGrid === 'function') buildStockGrid(visibleStocks);
           }
+          // Re-render the open detail panel if it's showing a US stock
+          if (activePanelIdx !== null && typeof renderDetailPanel === 'function') renderDetailPanel(activePanelIdx);
           // Re-render My Portfolio if open — so P&L reflects fresh US prices
           var mpTab = document.getElementById('dtab-myportfolio');
           if (mpTab && mpTab.classList.contains('active') && typeof renderMyPortfolioModule === 'function') {
@@ -3215,6 +3217,7 @@ var SIGNAL_ENGINE = {
           if (typeof _mktFilter !== 'undefined' && (_mktFilter === 'UK' || _mktFilter === 'ALL')) {
             if (typeof buildStockGrid === 'function') buildStockGrid(visibleStocks);
           }
+          if (activePanelIdx !== null && typeof renderDetailPanel === 'function') renderDetailPanel(activePanelIdx);
         }
       })
       .catch(function(e) { console.warn('[UK Prices] Fetch failed:', e.message); });
@@ -3332,6 +3335,11 @@ var SIGNAL_ENGINE = {
           if (typeof ALL_STOCKS !== 'undefined') ALL_STOCKS = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []).concat(typeof UK_STOCKS !== 'undefined' ? UK_STOCKS : []);
           if (!visibleStocks || visibleStocks.length === 0) visibleStocks = STOCKS.slice();
           if (typeof buildStockGrid === 'function') buildStockGrid(visibleStocks);
+          // Re-render the OPEN stock detail panel so its price/KPIs reflect the
+          // fresh figures — the grid rebuild alone doesn't touch the open panel.
+          if (activePanelIdx !== null && typeof renderDetailPanel === 'function') {
+            renderDetailPanel(activePanelIdx);
+          }
           // Flash price elements to show live update
           setTimeout(function() {
             document.querySelectorAll('.sc-price').forEach(function(el) {
@@ -7849,19 +7857,16 @@ function saveCurrentPortfolio() {
     toast('Generate a portfolio first, then save it.', 'error');
     return;
   }
-  // Must be signed in — the My Portfolio table is per-user
   if (!currentUser || !currentUser.id) {
     toast('⚠️ Please sign in to save this AI portfolio', 'error');
     return;
   }
-  // Validate the generated portfolio has the fields we rely on below
-  var _d0 = _portData;
-  if (!_d0.portfolio || !_d0.portfolio.length || !_d0.weights || !_d0.weights.length) {
+  var d = _portData;
+  if (!d.portfolio || !d.portfolio.length || !d.weights || !d.weights.length) {
     toast('⚠️ This portfolio has no holdings to save — regenerate and try again', 'error');
-    console.error('[AI Portfolio] Save aborted — missing portfolio/weights', _d0);
+    console.error('[AI Portfolio] Save aborted — missing portfolio/weights', d);
     return;
   }
-  var d = _portData;
   var name = d.ai && d.ai.portfolioTitle ? d.ai.portfolioTitle : 'My Portfolio ' + new Date().toLocaleDateString('en-NG');
   var entry = {
     id:          'p_' + Date.now(),
@@ -7960,15 +7965,13 @@ function saveCurrentPortfolio() {
 
     Promise.all([insertPromise].concat(deactivatePromises)).then(function(results) {
       var failed = results.filter(function(r){ return r && r.error; });
-      // Always update local cache so the portfolio is usable this session
       _mpCache = mpList;
       try { localStorage.setItem(MP_KEY, JSON.stringify(mpList)); } catch(e) {}
 
       if (failed.length) {
-        var msg = failed[0].error.message || 'unknown error';
+        var msg  = failed[0].error.message || 'unknown error';
         var code = failed[0].error.code || '';
         console.error('[AI Portfolio] Supabase save FAILED:', code, msg, failed[0].error);
-        // Column-missing errors mean the DB schema is out of date — tell the user plainly
         if (/column|schema|does not exist|PGRST/i.test(msg + code)) {
           toast('❌ Cloud save failed — database needs updating (' + (code || 'schema') + '). It works this session but will not sync until fixed.', 'error');
         } else {
@@ -7978,7 +7981,6 @@ function saveCurrentPortfolio() {
         console.log('[AI Portfolio] ✓ Saved to Supabase:', mpEntry.name);
         toast('✓ Portfolio saved — opening in 📈 My Portfolio tab with live P&L tracking', 'success');
       }
-      // Navigate to My Portfolio tab either way
       setTimeout(function() {
         var mpTab = document.getElementById('tab-myportfolio');
         if (mpTab) mpTab.click();
@@ -11261,7 +11263,11 @@ function adminRefreshNGXPrices() {
                       toast('✓ NGX prices refreshed: ' + s.pricesLoaded + '/148 stocks via EODHD', 'success');
                       if (res) res.innerHTML = '<span style="color:var(--green)">✓ ' + s.pricesLoaded + '/148 NGX prices updated via EODHD · Completed at ' + _ts + '</span>';
                       if (btn) { btn.disabled = false; btn.textContent = '📈 Refresh NGX Prices — EODHD (All 148 stocks)'; }
-                  if (updated > 0) { if (typeof filterStocks === 'function') filterStocks(); else if (typeof buildStockGrid === 'function' && visibleStocks && visibleStocks.length > 0) buildStockGrid(visibleStocks); }
+                  if (updated > 0) {
+                    if (typeof filterStocks === 'function') filterStocks();
+                    else if (typeof buildStockGrid === 'function' && visibleStocks && visibleStocks.length > 0) buildStockGrid(visibleStocks);
+                    if (activePanelIdx !== null && typeof renderDetailPanel === 'function') renderDetailPanel(activePanelIdx);
+                  }
                     }).catch(function() {});
                 } else if (_poll >= _maxPolls) {
                   clearInterval(_iv);
@@ -11320,7 +11326,11 @@ function adminRefreshUSPrices() {
                   toast('✓ US prices updated for ' + (s.count || updated) + ' stocks', 'success');
                   if (res) res.innerHTML = '<span style="color:var(--green)">✓ ' + (s.count || updated) + '/500 US prices refreshed via Yahoo Finance · Last updated: ' + (s.updatedAt || 'just now') + '</span>';
                   if (btn) { btn.disabled = false; btn.textContent = '📈 Refresh US Prices — Yahoo Finance (All 500 stocks)'; }
-                  if (updated > 0) { if (typeof filterStocks === 'function') filterStocks(); else if (typeof buildStockGrid === 'function' && visibleStocks && visibleStocks.length > 0) buildStockGrid(visibleStocks); }
+                  if (updated > 0) {
+                    if (typeof filterStocks === 'function') filterStocks();
+                    else if (typeof buildStockGrid === 'function' && visibleStocks && visibleStocks.length > 0) buildStockGrid(visibleStocks);
+                    if (activePanelIdx !== null && typeof renderDetailPanel === 'function') renderDetailPanel(activePanelIdx);
+                  }
                 }).catch(function() {});
             } else if (_poll >= 15) {
               clearInterval(_iv);
@@ -14035,19 +14045,17 @@ function mpRenderHistoryView() {
 
 function mpOpenCreateModal() {
   try {
-    // Guard: user must be signed in with a paid plan to create portfolios
     if (!currentUser || !currentUser.id) {
       toast('Please sign in to create a portfolio', 'error');
       return;
     }
-    // Remove any stale overlay left behind by a previous failed open
     var stale = document.getElementById('mp-create-overlay');
     if (stale) stale.remove();
 
     var overlay = document.createElement('div');
     overlay.className = 'mp-modal-overlay';
     overlay.id = 'mp-create-overlay';
-    // Inline the critical positioning so a missing/stale stylesheet can't hide it
+    // Inline critical positioning so a stale/missing stylesheet can't hide it
     overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
     overlay.innerHTML = '<div class="mp-modal" style="background:var(--bg2,#fff);border-radius:16px;max-width:540px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
     + '<div class="mp-modal-hdr">'
@@ -14065,9 +14073,7 @@ function mpOpenCreateModal() {
     + '<button class="mp-modal-close btn btn-ghost dark" data-modal="mp-create-overlay" style="flex:1">Cancel</button>'
     + '</div></div></div>';
     document.body.appendChild(overlay);
-    // Click the dimmed backdrop to dismiss
     overlay.addEventListener('click', function(ev){ if (ev.target === overlay) overlay.remove(); });
-    // Focus the name field so the user can type immediately
     var nameEl = document.getElementById('mp-create-name');
     if (nameEl) setTimeout(function(){ nameEl.focus(); }, 50);
   } catch (err) {
@@ -14078,29 +14084,28 @@ function mpOpenCreateModal() {
 
 function mpCreatePortfolio() {
   try {
-  var name = (document.getElementById('mp-create-name').value || '').trim();
-  var curr = document.getElementById('mp-create-curr').value || 'NGN';
-  var desc = (document.getElementById('mp-create-desc').value || '').trim();
+    var name = (document.getElementById('mp-create-name').value || '').trim();
+    var curr = document.getElementById('mp-create-curr').value || 'NGN';
+    var desc = (document.getElementById('mp-create-desc').value || '').trim();
 
-  if (!name) { toast('Enter a portfolio name', 'error'); return; }
+    if (!name) { toast('Enter a portfolio name', 'error'); return; }
 
-  var all = mpGetAll();
-  // Deactivate others
-  all.forEach(function(p){ p.active = false; });
+    var all = mpGetAll();
+    all.forEach(function(p){ p.active = false; });
 
-  all.unshift({
-    id:       'mp_' + Date.now(),
-    name:     name,
-    currency: curr,
-    desc:     desc,
-    holdings: [],
-    active:   true,
-    createdAt:new Date().toISOString()
-  });
-  mpSaveAll(all);
+    all.unshift({
+      id:       'mp_' + Date.now(),
+      name:     name,
+      currency: curr,
+      desc:     desc,
+      holdings: [],
+      active:   true,
+      createdAt:new Date().toISOString()
+    });
+    mpSaveAll(all);
 
-  var overlay = document.getElementById('mp-create-overlay');
-  if (overlay) overlay.remove();
+    var overlay = document.getElementById('mp-create-overlay');
+    if (overlay) overlay.remove();
     toast('✓ Portfolio "' + name + '" created', 'success');
     renderMyPortfolioModule();
   } catch (err) {
@@ -15185,10 +15190,10 @@ function gcDeleteSavedScreen(screenId) {
 // Lives inside My Portfolio tab
 // ══════════════════════════════════════════════════════════════════════
 
-// ── Analyser state — survives re-renders ──────────────────────────────
-// The My Portfolio tab is re-rendered automatically whenever NGX/US prices
-// refresh or Supabase reloads. Without this state the analyser panel would
-// snap shut and discard results mid-use.
+// ── Build stamp — confirms which version is live ──────────────────────
+window.EQUITYAI_BUILD = 'unified-2026-08-06';
+
+// ── Analyser state — survives automatic re-renders ────────────────────
 window._mpAnalyserOpen        = window._mpAnalyserOpen        || false;
 window._mpAnalyserResultsHTML = window._mpAnalyserResultsHTML || '';
 window._mpAnalyserTab         = window._mpAnalyserTab         || 'csv';
@@ -15196,8 +15201,7 @@ window._mpAnalyserPaste       = window._mpAnalyserPaste       || '';
 
 // Guarded re-render — used ONLY by automatic triggers (price polls, Supabase
 // load). Skips the re-render while the analyser is open so the user's upload,
-// pasted text and results are never wiped underneath them. Manual user actions
-// still call renderMyPortfolioModule() directly.
+// pasted text and results are never wiped underneath them.
 function mpAutoRerender() {
   if (window._mpAnalyserOpen) {
     console.log('[Portfolio] Auto re-render skipped — Portfolio Analyser is open');
@@ -15212,6 +15216,36 @@ function mpAnalyserCaptureState() {
   if (pasteEl) window._mpAnalyserPaste = pasteEl.value;
   var resEl = document.getElementById('mp-analyser-results');
   if (resEl && resEl.innerHTML.trim()) window._mpAnalyserResultsHTML = resEl.innerHTML;
+}
+
+// Full portfolio diagnostic — run mpPortfolioDiagnose() in DevTools
+function mpPortfolioDiagnose() {
+  var sb = (typeof getSupabase === 'function') ? getSupabase() : null;
+  var r = {
+    build:              window.EQUITYAI_BUILD,
+    signedIn:           !!(currentUser && currentUser.id),
+    plan:               currentUser ? currentUser.plan : '(not signed in)',
+    supabaseReady:      !!sb,
+    openCreateModalFn:  typeof window.mpOpenCreateModal,
+    createPortfolioFn:  typeof window.mpCreatePortfolio,
+    saveAIPortfolioFn:  typeof window.saveCurrentPortfolio,
+    autoGuardPresent:   typeof window.mpAutoRerender === 'function',
+    ukLookupPresent:    typeof UK_STOCKS !== 'undefined',
+    cachedPortfolios:   (typeof _mpCache !== 'undefined' && _mpCache) ? _mpCache.length : 'null',
+    generatedPortfolio: (typeof _portData !== 'undefined' && _portData) ? 'ready' : 'none'
+  };
+  console.table(r);
+  if (!r.signedIn) console.warn('⚠️ Not signed in — creating/saving portfolios requires login');
+  if (!r.supabaseReady) console.warn('⚠️ Supabase not connected — saves persist locally only');
+  if (sb && currentUser && currentUser.id) {
+    console.log('Probing user_portfolios table schema...');
+    sb.from('user_portfolios').select('id,name,currency,description,holdings,active,is_ai,ai_backtest,ai_forward,created_at,updated_at').limit(1)
+      .then(function(res){
+        if (res.error) console.error('❌ Table probe FAILED — likely missing column:', res.error.message, res.error.code);
+        else console.log('✓ user_portfolios table has all expected columns');
+      });
+  }
+  return r;
 }
 
 function mpBuildAnalyserHTML() {
@@ -15260,80 +15294,18 @@ function mpBuildAnalyserUploadUI() {
     + '</div>';
 }
 
-// Build stamp — confirms which version of index.html is actually live
-window.EQUITYAI_BUILD = 'portfolio-fix-2026-07-23b';
-
-// Full portfolio diagnostic — run mpPortfolioDiagnose() in DevTools
-function mpPortfolioDiagnose() {
-  var sb = (typeof getSupabase === 'function') ? getSupabase() : null;
-  var r = {
-    build:              window.EQUITYAI_BUILD,
-    signedIn:           !!(currentUser && currentUser.id),
-    plan:               currentUser ? currentUser.plan : '(not signed in)',
-    supabaseReady:      !!sb,
-    openCreateModalFn:  typeof window.mpOpenCreateModal,
-    createPortfolioFn:  typeof window.mpCreatePortfolio,
-    saveAIPortfolioFn:  typeof window.saveCurrentPortfolio,
-    mpSaveAllFn:        typeof window.mpSaveAll,
-    cachedPortfolios:   (typeof _mpCache !== 'undefined' && _mpCache) ? _mpCache.length : 'null',
-    generatedPortfolio: (typeof _portData !== 'undefined' && _portData) ? 'ready' : 'none'
-  };
-  console.table(r);
-  if (!r.signedIn) console.warn('⚠️ Not signed in — creating/saving portfolios requires login');
-  if (!r.supabaseReady) console.warn('⚠️ Supabase not connected — saves will only persist locally');
-  // Live probe: does a trivial upsert to user_portfolios succeed?
-  if (sb && currentUser && currentUser.id) {
-    console.log('Probing user_portfolios table schema...');
-    sb.from('user_portfolios').select('id,name,currency,description,holdings,active,is_ai,ai_backtest,ai_forward,created_at,updated_at').limit(1)
-      .then(function(res){
-        if (res.error) console.error('❌ Table probe FAILED — likely missing column:', res.error.message, res.error.code);
-        else console.log('✓ user_portfolios table has all expected columns');
-      });
-  }
-  return r;
-}
-console.log('%c[EquityAI] Build: ' + window.EQUITYAI_BUILD, 'color:#1a56db;font-weight:700');
-
-// Console diagnostic — run mpAnalyserDiagnose() in DevTools to see what's wrong
-function mpAnalyserDiagnose() {
-  var card = document.getElementById('mp-analyser-card');
-  var body = document.getElementById('mp-analyser-body');
-  var btn  = document.getElementById('mp-analyser-toggle');
-  var r = {
-    build:            window.EQUITYAI_BUILD || '(OLD BUILD — fix not deployed)',
-    cardInDOM:        !!card,
-    bodyInDOM:        !!body,
-    buttonInDOM:      !!btn,
-    duplicateCards:   document.querySelectorAll('#mp-analyser-card').length,
-    bodyDisplay:      body ? (body.style.display || '(unset)') : 'n/a',
-    openStateFlag:    !!window._mpAnalyserOpen,
-    toggleFnType:     typeof window.mpToggleAnalyser,
-    autoGuardPresent: typeof window.mpAutoRerender === 'function',
-    ukLookupPresent:  typeof UK_STOCKS !== 'undefined'
-  };
-  if (btn) {
-    var rect = btn.getBoundingClientRect();
-    r.buttonSize = Math.round(rect.width) + 'x' + Math.round(rect.height);
-    var mid = document.elementFromPoint(rect.left + rect.width/2, rect.top + rect.height/2);
-    r.elementAtButtonCentre = mid ? (mid.id || mid.tagName + '.' + (mid.className||'')) : 'none';
-    r.buttonIsClickable = !!(mid && (mid === btn || btn.contains(mid)));
-  }
-  console.table(r);
-  return r;
-}
-
 function mpToggleAnalyser() {
   var card = document.getElementById('mp-analyser-card');
   var body = document.getElementById('mp-analyser-body');
   var btn  = document.getElementById('mp-analyser-toggle');
   if (!body || !btn) {
-    console.warn('[Analyser] Panel not found in DOM — rebuilding My Portfolio');
+    console.warn('[Analyser] Panel not found — rebuilding My Portfolio');
     window._mpAnalyserOpen = true;
     if (typeof renderMyPortfolioModule === 'function') renderMyPortfolioModule();
     return;
   }
   var isOpen = body.style.display !== 'none';
-  if (isOpen) mpAnalyserCaptureState();   // keep work before collapsing
+  if (isOpen) mpAnalyserCaptureState();
   window._mpAnalyserOpen = !isOpen;
   body.style.display = isOpen ? 'none' : 'block';
   btn.textContent    = isOpen ? 'Upload Portfolio' : '✕ Close';
@@ -15483,7 +15455,6 @@ function mpAnalyserRunAnalysis(holdings) {
   var isMixed  = marketsUsed > 1;
   var isUSPort = usCount > 0 && ngxCount === 0 && ukCount === 0; // pure US
   var isUKPort = ukCount > 0 && ngxCount === 0 && usCount === 0; // pure UK
-  // Headline currency follows the dominant market; per-holding symbols set below
   var sym = isUSPort ? '$' : isUKPort ? '£' : '₦';
 
   // For mixed portfolios, tag each holding with its currency
@@ -15627,7 +15598,7 @@ function mpAnalyserRunAnalysis(holdings) {
   html += '<div style="margin-top:14px"><button onclick="mpAnalyserSaveToPortfolio()" class="btn btn-gold" style="width:100%;justify-content:center;padding:12px;background:linear-gradient(135deg,#059669,#0e7490)">📈 Save to My Portfolio for Live P&L Tracking</button></div>';
 
   resultsEl.innerHTML = html;
-  window._mpAnalyserResultsHTML = html;   // survive automatic re-renders
+  window._mpAnalyserResultsHTML = html;
   window._analyserFuture = futureMonths;
   window._analyserSym    = sym;
   window._analyserIsUS   = isUSPort;
