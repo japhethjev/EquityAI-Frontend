@@ -13325,7 +13325,7 @@ function mpRenderDashboard(root, port, calc, all) {
   ];
   kpiData.forEach(function(k) {
     html += '<div style="background:'+k.bg+';border-radius:10px;padding:12px 14px">';
-    html += '<div id="'+k.id+'" class="num-animate" style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:'+k.c+';margin-bottom:2px">'+k.v+'</div>';
+    html += '<div id="'+k.id+'" style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:'+k.c+';margin-bottom:2px;opacity:1;animation:none">'+k.v+'</div>';
     html += '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.04em">'+k.l+'</div>';
     html += '<div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:1px">'+k.s+'</div>';
     html += '</div>';
