@@ -13332,16 +13332,10 @@ function mpRenderDashboard(root, port, calc, all) {
   });
   html += '</div></div>';
 
-  // Schedule countup animation after render
-  var _kpiCountup = kpiData;
-  var _kpiSym = sym;
-  setTimeout(function() {
-    _kpiCountup.forEach(function(k) {
-      if (k.raw === null) return;
-      var el = document.getElementById(k.id);
-      if (el) animateCountup(el, k.raw, 900, _kpiSym, '');
-    });
-  }, 150);
+  // Numbers render at their final value immediately — no count-from-zero animation.
+  // The previous countup caused visible "shaking" because the abbreviated format
+  // (₦9.64M → ₦9,644,245) changes width as it counts, making the digits jitter.
+  // The one-shot num-animate fade-in (CSS) is kept; it's smooth and doesn't reflow.
 
   // ── CHARTS ROW ───────────────────────────────────────────────────
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">';
