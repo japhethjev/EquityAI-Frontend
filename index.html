@@ -2381,6 +2381,7 @@ var STOCKS=[
 {t:"CORNERST",n:"Cornerstone Insurance",sec:"Insurance",price:6.0,chg:"+9.97%",ytd:20,pe:5.0,dy:0,div:0,mc:"₦109B",eps:"1.2",roe:"12%",sig:"HOLD",rev:"₦22B",pat:"₦21.8B",ebitda:"₦28B",npm:"99%",gpm:"65%",de:"0.3x",cr:"2.0x",roa:"4.1%",bv:"₦5",fcf:"₦12B",revy:"+22%",paty:"+45%",thesis:"Revenue ₦22B. MCap ₦109B. Life and general insurance. Beneficiary of CBN-driven insurance sector reforms. P/E 5.0x.",bars:[["Insurance sector reform",74,"bf-g"],["P/E 5.0x",80,"bf-t"],["Revenue growth",68,"bf-p"],["Sector tailwind",72,"bf-a"]]},
 {t:"LINKASSURE",n:"Linkage Assurance",sec:"Insurance",price:1.82,chg:"+2.29%",ytd:8,pe:3.9,dy:0,div:0,mc:"₦33.3B",eps:"0.46",roe:"9%",sig:"BUY",rev:"₦8B",pat:"₦8.5B",ebitda:"₦10B",npm:"106%",gpm:"60%",de:"0.2x",cr:"2.1x",roa:"3.0%",bv:"₦5.1",fcf:"₦4B",revy:"+15%",paty:"+20%",thesis:"Small-cap insurer. Revenue ₦8B. MCap ₦33B. Low leverage D/E 0.2x. Growth play on rising insurance penetration.",bars:[["Low leverage",82,"bf-g"],["P/E 3.9x",82,"bf-t"],["Insurance growth",65,"bf-p"],["Revenue growth",60,"bf-a"]]},
 {t:"GUINEAINS",n:"Guinea Insurance",sec:"Insurance",price:1.11,chg:"0.00%",ytd:5,pe:4.0,dy:0,div:0,mc:"₦8.8B",eps:"0.28",roe:"8%",sig:"HOLD",rev:"₦6B",pat:"₦2.2B",ebitda:"₦3B",npm:"36.7%",gpm:"45%",de:"0.3x",cr:"1.7x",roa:"2.5%",bv:"₦3.5",fcf:"₦1.5B",revy:"+12%",paty:"+18%",thesis:"Micro-cap insurer. Revenue ₦6B. MCap ₦8.8B. Speculative play on insurance sector penetration growth in Nigeria.",bars:[["Insurance tailwind",62,"bf-g"],["Low price entry",70,"bf-t"],["Revenue growth",55,"bf-p"],["Sector reform",60,"bf-a"]]},
+{t:"UNIVERSAL",n:"Universal Insurance",sec:"Insurance",price:0.20,chg:"0.00%",ytd:0,pe:5.0,dy:0,div:0,mc:"₦7.2B",eps:"0.04",roe:"8%",sig:"WATCH",rev:"₦12B",pat:"₦2.1B",ebitda:"₦3B",npm:"17.5%",gpm:"45%",de:"0.3x",cr:"1.8x",roa:"2.1%",bv:"₦0.50",fcf:"₦1.2B",revy:"+18%",paty:"+12%",thesis:"Universal Insurance Plc — small general insurer on NGX. Gross premium income ₦12B. P/E 5x. Low price stock. CBN/NAICOM recapitalisation compliance in progress.",bars:[["Compliance drive",62,"bf-g"],["Premium growth",55,"bf-t"],["P/E 5x",68,"bf-p"],["NAICOM reform",60,"bf-a"]]},
 {t:"INTENEGINS",n:"International Energy Insurance",sec:"Insurance",price:2.86,chg:"0.00%",ytd:8,pe:5.2,dy:0,div:0,mc:"₦3.3B",eps:"0.5",roe:"9%",sig:"HOLD",rev:"₦4B",pat:"₦0.6B",ebitda:"₦1B",npm:"15%",gpm:"38%",de:"0.4x",cr:"1.5x",roa:"2.0%",bv:"₦7.2",fcf:"₦0.5B",revy:"+10%",paty:"+15%",thesis:"Niche energy sector insurer. Revenue ₦4B. MCap ₦3.3B. Specialises in oil & gas insurance — growing with Nigerian energy sector.",bars:[["Energy insurance niche",68,"bf-g"],["Oil sector growth",70,"bf-t"],["Revenue growth",55,"bf-p"],["Sector specialist",65,"bf-a"]]},
 {t:"FTGINSURE",n:"FTG Insurance",sec:"Insurance",price:1.14,chg:"0.00%",ytd:5,pe:3.5,dy:0,div:0,mc:"₦13.6B",eps:"0.3",roe:"8%",sig:"HOLD",rev:"₦5B",pat:"₦3.9B",ebitda:"₦5B",npm:"78%",gpm:"55%",de:"0.2x",cr:"1.9x",roa:"2.5%",bv:"₦3.8",fcf:"₦2B",revy:"+12%",paty:"+18%",thesis:"Revenue ₦5B. MCap ₦13.6B. P/E 3.5x. Speculative insurance play. Low entry price and low leverage.",bars:[["P/E 3.5x",80,"bf-g"],["Low leverage",78,"bf-t"],["Insurance growth",60,"bf-p"],["Revenue growth",58,"bf-a"]]},
 
@@ -3182,12 +3183,10 @@ var SIGNAL_ENGINE = {
           if (typeof _mktFilter !== 'undefined' && (_mktFilter === 'US' || _mktFilter === 'ALL')) {
             if (typeof buildStockGrid === 'function') buildStockGrid(visibleStocks);
           }
-          // Re-render the open detail panel if it's showing a US stock
-          if (activePanelIdx !== null && typeof renderDetailPanel === 'function') renderDetailPanel(activePanelIdx);
           // Re-render My Portfolio if open — so P&L reflects fresh US prices
           var mpTab = document.getElementById('dtab-myportfolio');
           if (mpTab && mpTab.classList.contains('active') && typeof renderMyPortfolioModule === 'function') {
-            setTimeout(mpAutoRerender, 300);
+            setTimeout(renderMyPortfolioModule, 300);
           }
         }
       })
@@ -3216,7 +3215,6 @@ var SIGNAL_ENGINE = {
           if (typeof _mktFilter !== 'undefined' && (_mktFilter === 'UK' || _mktFilter === 'ALL')) {
             if (typeof buildStockGrid === 'function') buildStockGrid(visibleStocks);
           }
-          if (activePanelIdx !== null && typeof renderDetailPanel === 'function') renderDetailPanel(activePanelIdx);
         }
       })
       .catch(function(e) { console.warn('[UK Prices] Fetch failed:', e.message); });
@@ -3316,45 +3314,24 @@ var SIGNAL_ENGINE = {
         var prices = data.prices;
         var updated = 0;
         if (typeof STOCKS === 'undefined') return;
-        // Track which tickers actually received a live price this cycle so we can
-        // tell a genuinely fresh figure from a stale hardcoded seed value.
-        window._ngxLiveTickers = window._ngxLiveTickers || {};
         STOCKS.forEach(function(s) {
           var p = prices[s.t];
           if (!p || !p.price || p.price <= 0) return;
           s.price = p.price;
-          s._priceLive = true;                 // this stock has a real live price
-          window._ngxLiveTickers[s.t] = { price: p.price, at: data.updatedAt || 'today' };
           if (p.chgPct !== undefined && p.chgPct !== null)
             s.chg = (p.chgPct >= 0 ? '+' : '') + p.chgPct.toFixed(2) + '%';
           updated++;
         });
-        // Log any stocks the server did NOT return a price for — these keep seed values
-        var _missing = STOCKS.filter(function(s){ return !s._priceLive; }).map(function(s){ return s.t; });
-        if (_missing.length) console.warn('[NGX Prices] ' + _missing.length + ' stock(s) missing from EODHD feed — showing seed price: ' + _missing.join(', '));
-        // Persist a coverage snapshot for mpPriceCoverage() audit
-        window._ngxCoverage = {
-          total:    STOCKS.length,
-          live:     updated,
-          missing:  _missing,
-          asOf:     data.updatedAt || 'today',
-          fetchedAt: new Date().toISOString()
-        };
         if (updated > 0) {
           _ngxPricesReady = true;
           // Update portfolio tab price status indicator
           var _psi = document.getElementById('port-price-status');
           if (_psi) _psi.innerHTML = '✅ Live NGX prices loaded from EODHD · ' + (data.updatedAt ? new Date(data.updatedAt).toLocaleDateString('en-NG',{day:'numeric',month:'short',year:'numeric'}) : 'today');
-          console.log('[NGX Prices] ✓ Applied ' + updated + '/' + STOCKS.length + ' fresh NGX prices from EODHD (as of ' + (data.updatedAt || 'today') + ')');
+          console.log('[NGX Prices] ✓ Applied ' + updated + '/148 fresh NGX prices from EODHD (as of ' + (data.updatedAt || 'today') + ')');
           updatePriceDateSubtitle(data.updatedAt, 'NGX');
           if (typeof ALL_STOCKS !== 'undefined') ALL_STOCKS = STOCKS.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []).concat(typeof UK_STOCKS !== 'undefined' ? UK_STOCKS : []);
           if (!visibleStocks || visibleStocks.length === 0) visibleStocks = STOCKS.slice();
           if (typeof buildStockGrid === 'function') buildStockGrid(visibleStocks);
-          // Re-render the OPEN stock detail panel so its price/KPIs reflect the
-          // fresh figures — the grid rebuild alone doesn't touch the open panel.
-          if (activePanelIdx !== null && typeof renderDetailPanel === 'function') {
-            renderDetailPanel(activePanelIdx);
-          }
           // Flash price elements to show live update
           setTimeout(function() {
             document.querySelectorAll('.sc-price').forEach(function(el) {
@@ -3367,7 +3344,7 @@ var SIGNAL_ENGINE = {
           // Re-render My Portfolio if open — so P&L reflects fresh prices
           var mpTab = document.getElementById('dtab-myportfolio');
           if (mpTab && mpTab.classList.contains('active') && typeof renderMyPortfolioModule === 'function') {
-            setTimeout(mpAutoRerender, 300);
+            setTimeout(renderMyPortfolioModule, 300);
           }
 
           // Update market strip — use server data if valid, otherwise compute locally from STOCKS
@@ -3811,11 +3788,6 @@ function renderDetailPanel(idx) {
   var isUK  = (s.market === 'UK');
   var sym   = isUS ? '$' : isUK ? '£' : '&#8358;';
   var mktLbl = isUS ? 'NYSE/NASDAQ · Yahoo Finance · Jul 2026' : isUK ? 'LSE · Yahoo Finance · Jul 2026' : 'NGX Official + EODHD · Jul 2026';
-  // For NGX stocks that never received a live price this session, flag the shown
-  // figure as an indicative seed value rather than a live quote.
-  if (!isUS && !isUK && !s._priceLive && typeof _ngxPricesReady !== 'undefined' && _ngxPricesReady) {
-    mktLbl = 'NGX · ⚠️ indicative price (not in live feed)';
-  }
   var tab = activePanelTab[idx] || 'overview';  // Default to Overview tab
   var posChg = s.chg ? !s.chg.startsWith('-') : true;
 
@@ -4060,20 +4032,6 @@ function _initDashboardCore(fresh) {
 
   // Schedule periodic server-fetch checks (every 30 min — lightweight HTTP GET, not Claude calls)
   scheduleServerFetchPolling();
-
-  // ── Fetch live prices immediately on load for EVERY user, regardless of plan ──
-  // Prices are not a paid feature — free and pro users alike should see today's
-  // NGX/US closing prices from EODHD/Yahoo the moment the dashboard opens, rather
-  // than waiting for the 30-min poll or a tab switch. Signals remain plan-gated
-  // above; this is purely the price layer.
-  (function() {
-    var _u = SIGNAL_ENGINE.SERVER_URL;
-    if (_u) {
-      SIGNAL_ENGINE.fetchNGXPrices(_u);
-      SIGNAL_ENGINE.fetchUSPrices(_u);
-      if (typeof SIGNAL_ENGINE.fetchUKPrices === 'function') SIGNAL_ENGINE.fetchUKPrices(_u);
-    }
-  })();
 }
 
 function injectSignalEngineButton(plan) {
@@ -7891,16 +7849,7 @@ function saveCurrentPortfolio() {
     toast('Generate a portfolio first, then save it.', 'error');
     return;
   }
-  if (!currentUser || !currentUser.id) {
-    toast('⚠️ Please sign in to save this AI portfolio', 'error');
-    return;
-  }
   var d = _portData;
-  if (!d.portfolio || !d.portfolio.length || !d.weights || !d.weights.length) {
-    toast('⚠️ This portfolio has no holdings to save — regenerate and try again', 'error');
-    console.error('[AI Portfolio] Save aborted — missing portfolio/weights', d);
-    return;
-  }
   var name = d.ai && d.ai.portfolioTitle ? d.ai.portfolioTitle : 'My Portfolio ' + new Date().toLocaleDateString('en-NG');
   var entry = {
     id:          'p_' + Date.now(),
@@ -7999,30 +7948,28 @@ function saveCurrentPortfolio() {
 
     Promise.all([insertPromise].concat(deactivatePromises)).then(function(results) {
       var failed = results.filter(function(r){ return r && r.error; });
-      _mpCache = mpList;
-      try { localStorage.setItem(MP_KEY, JSON.stringify(mpList)); } catch(e) {}
-
       if (failed.length) {
-        var msg  = failed[0].error.message || 'unknown error';
-        var code = failed[0].error.code || '';
-        console.error('[AI Portfolio] Supabase save FAILED:', code, msg, failed[0].error);
-        if (/column|schema|does not exist|PGRST/i.test(msg + code)) {
-          toast('❌ Cloud save failed — database needs updating (' + (code || 'schema') + '). It works this session but will not sync until fixed.', 'error');
-        } else {
-          toast('❌ Cloud save failed: ' + msg + ' — saved on this device only', 'error');
-        }
+        console.error('[AI Portfolio] Supabase save failed:', failed[0].error.message);
+        toast('⚠️ Portfolio saved locally but cloud sync failed. Refresh to retry.', 'error');
+        // Still update cache and navigate
+        _mpCache = mpList;
+        try { localStorage.setItem(MP_KEY, JSON.stringify(mpList)); } catch(e) {}
       } else {
         console.log('[AI Portfolio] ✓ Saved to Supabase:', mpEntry.name);
-        toast('✓ Portfolio saved — opening in 📈 My Portfolio tab with live P&L tracking', 'success');
+        // Update cache from Supabase authoritative response
+        _mpCache = mpList;
+        try { localStorage.setItem(MP_KEY, JSON.stringify(mpList)); } catch(e) {}
       }
+      // Navigate to My Portfolio tab now that save is confirmed
+      toast('✓ Portfolio saved — opening in 📈 My Portfolio tab with live P&L tracking', 'success');
       setTimeout(function() {
         var mpTab = document.getElementById('tab-myportfolio');
         if (mpTab) mpTab.click();
       }, 400);
       if (document.getElementById('dtab-myspace') && document.getElementById('dtab-myspace').classList.contains('active')) renderMyDashboard();
     }).catch(function(e) {
-      console.error('[AI Portfolio] Save error:', e.message, e);
-      toast('❌ Save error — ' + e.message, 'error');
+      console.error('[AI Portfolio] Save error:', e.message);
+      toast('⚠️ Save error — ' + e.message, 'error');
       _mpCache = mpList;
       try { localStorage.setItem(MP_KEY, JSON.stringify(mpList)); } catch(e2) {}
       setTimeout(function() {
@@ -9745,7 +9692,7 @@ US_STOCKS = US_STOCKS.concat([
 {t:"LUNR",n:"Intuitive Machines",sec:"Defence",price:12.5,pe:0,dy:0,div:0,mc:"$1.85B",eps:"-0.85",roe:"-35%",sig:"HOLD",rev:"$285M",pat:"-$125M",npm:"-43.9%",de:"0.3x",ebitda:"-$45M",fcf:"-$85M",revy:"+85%",paty:"N/M",ytd:48,chg:"+3.5%",market:"US",currency:"USD",cap:"small"},
 {t:"DV",n:"DoubleVerify Holdings",sec:"Technology",price:18.5,pe:28.5,dy:0,div:0,mc:"$3.2B",eps:"0.65",roe:"12%",sig:"BUY",rev:"$685M",pat:"$85M",npm:"12.4%",de:"0x",ebitda:"$185M",fcf:"$145M",revy:"+18%",paty:"+45%",ytd:22,chg:"+1.8%",market:"US",currency:"USD",cap:"small"},
 {t:"PI",n:"Impinj Inc",sec:"Technology",price:148.5,pe:85.5,dy:0,div:0,mc:"$4.5B",eps:"1.747",roe:"18%",sig:"BUY",rev:"$385M",pat:"$45M",npm:"11.7%",de:"0.5x",ebitda:"$85M",fcf:"$65M",revy:"+22%",paty:"+85%",ytd:38,chg:"+2.5%",market:"US",currency:"USD",cap:"small"},
-{t:"AKAM2",n:"Akamai 2",sec:"Technology",price:98.5,pe:18.5,dy:0,div:0,mc:"$14.5B",eps:"5.324",roe:"18%",sig:"HOLD",rev:"$4.25B",pat:"$685M",npm:"16.1%",de:"0.8x",ebitda:"$1.65B",fcf:"$985M",revy:"+8%",paty:"+18%",ytd:12,chg:"+1.0%",market:"US",currency:"USD",cap:"mid"},
+{t:"OLO",n:"Olo Inc",sec:"Technology",price:8.5,pe:45.5,dy:0,div:0,mc:"$1.4B",eps:"0.187",roe:"5%",sig:"HOLD",rev:"$285M",pat:"$18M",npm:"6.3%",de:"0x",ebitda:"$35M",fcf:"$45M",revy:"+22%",paty:"+85%",ytd:18,chg:"+1.5%",market:"US",currency:"USD",cap:"small"},
 {t:"GDS",n:"GDS Holdings",sec:"Real Estate",price:38.5,pe:0,dy:0,div:0,mc:"$7.2B",eps:"-0.85",roe:"-8%",sig:"BUY",rev:"$1.65B",pat:"-$185M",npm:"-11.2%",de:"3.5x",ebitda:"$785M",fcf:"$185M",revy:"+18%",paty:"N/M",ytd:48,chg:"+3.2%",market:"US",currency:"USD",cap:"mid"},
 {t:"VNET",n:"VNET Group",sec:"Technology",price:8.5,pe:0,dy:0,div:0,mc:"$2.85B",eps:"-0.25",roe:"-8%",sig:"HOLD",rev:"$1.15B",pat:"-$85M",npm:"-7.4%",de:"2.5x",ebitda:"$385M",fcf:"$85M",revy:"+18%",paty:"N/M",ytd:42,chg:"+2.8%",market:"US",currency:"USD",cap:"small"},
 {t:"TWKS",n:"Thoughtworks Holding",sec:"Technology",price:8.5,pe:18.5,dy:0,div:0,mc:"$2.85B",eps:"0.459",roe:"8%",sig:"HOLD",rev:"$1.15B",pat:"$45M",npm:"3.9%",de:"0.5x",ebitda:"$125M",fcf:"$85M",revy:"+5%",paty:"+18%",ytd:12,chg:"+1.0%",market:"US",currency:"USD",cap:"small"},
@@ -11297,11 +11244,7 @@ function adminRefreshNGXPrices() {
                       toast('✓ NGX prices refreshed: ' + s.pricesLoaded + '/148 stocks via EODHD', 'success');
                       if (res) res.innerHTML = '<span style="color:var(--green)">✓ ' + s.pricesLoaded + '/148 NGX prices updated via EODHD · Completed at ' + _ts + '</span>';
                       if (btn) { btn.disabled = false; btn.textContent = '📈 Refresh NGX Prices — EODHD (All 148 stocks)'; }
-                  if (updated > 0) {
-                    if (typeof filterStocks === 'function') filterStocks();
-                    else if (typeof buildStockGrid === 'function' && visibleStocks && visibleStocks.length > 0) buildStockGrid(visibleStocks);
-                    if (activePanelIdx !== null && typeof renderDetailPanel === 'function') renderDetailPanel(activePanelIdx);
-                  }
+                  if (updated > 0) { if (typeof filterStocks === 'function') filterStocks(); else if (typeof buildStockGrid === 'function' && visibleStocks && visibleStocks.length > 0) buildStockGrid(visibleStocks); }
                     }).catch(function() {});
                 } else if (_poll >= _maxPolls) {
                   clearInterval(_iv);
@@ -11360,11 +11303,7 @@ function adminRefreshUSPrices() {
                   toast('✓ US prices updated for ' + (s.count || updated) + ' stocks', 'success');
                   if (res) res.innerHTML = '<span style="color:var(--green)">✓ ' + (s.count || updated) + '/500 US prices refreshed via Yahoo Finance · Last updated: ' + (s.updatedAt || 'just now') + '</span>';
                   if (btn) { btn.disabled = false; btn.textContent = '📈 Refresh US Prices — Yahoo Finance (All 500 stocks)'; }
-                  if (updated > 0) {
-                    if (typeof filterStocks === 'function') filterStocks();
-                    else if (typeof buildStockGrid === 'function' && visibleStocks && visibleStocks.length > 0) buildStockGrid(visibleStocks);
-                    if (activePanelIdx !== null && typeof renderDetailPanel === 'function') renderDetailPanel(activePanelIdx);
-                  }
+                  if (updated > 0) { if (typeof filterStocks === 'function') filterStocks(); else if (typeof buildStockGrid === 'function' && visibleStocks && visibleStocks.length > 0) buildStockGrid(visibleStocks); }
                 }).catch(function() {});
             } else if (_poll >= 15) {
               clearInterval(_iv);
@@ -12982,7 +12921,7 @@ function mpLoadFromSupabase(retryCount) {
       try { localStorage.setItem(MP_KEY, JSON.stringify(remote)); } catch(e){}
       console.log('[Portfolio] ✓ Loaded', remote.length, 'portfolio(s) from Supabase');
       var tab = document.getElementById('dtab-myportfolio');
-      if (tab && tab.classList.contains('active')) mpAutoRerender();
+      if (tab && tab.classList.contains('active')) renderMyPortfolioModule();
     })
     .catch(function(e){
       console.error('[Portfolio] Supabase load exception:', e.message);
@@ -13325,17 +13264,23 @@ function mpRenderDashboard(root, port, calc, all) {
   ];
   kpiData.forEach(function(k) {
     html += '<div style="background:'+k.bg+';border-radius:10px;padding:12px 14px">';
-    html += '<div id="'+k.id+'" style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:'+k.c+';margin-bottom:2px;opacity:1;animation:none">'+k.v+'</div>';
+    html += '<div id="'+k.id+'" class="num-animate" style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:'+k.c+';margin-bottom:2px">'+k.v+'</div>';
     html += '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.04em">'+k.l+'</div>';
     html += '<div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:1px">'+k.s+'</div>';
     html += '</div>';
   });
   html += '</div></div>';
 
-  // Numbers render at their final value immediately — no count-from-zero animation.
-  // The previous countup caused visible "shaking" because the abbreviated format
-  // (₦9.64M → ₦9,644,245) changes width as it counts, making the digits jitter.
-  // The one-shot num-animate fade-in (CSS) is kept; it's smooth and doesn't reflow.
+  // Schedule countup animation after render
+  var _kpiCountup = kpiData;
+  var _kpiSym = sym;
+  setTimeout(function() {
+    _kpiCountup.forEach(function(k) {
+      if (k.raw === null) return;
+      var el = document.getElementById(k.id);
+      if (el) animateCountup(el, k.raw, 900, _kpiSym, '');
+    });
+  }, 150);
 
   // ── CHARTS ROW ───────────────────────────────────────────────────
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">';
@@ -14072,20 +14017,10 @@ function mpRenderHistoryView() {
 }
 
 function mpOpenCreateModal() {
-  try {
-    if (!currentUser || !currentUser.id) {
-      toast('Please sign in to create a portfolio', 'error');
-      return;
-    }
-    var stale = document.getElementById('mp-create-overlay');
-    if (stale) stale.remove();
-
-    var overlay = document.createElement('div');
-    overlay.className = 'mp-modal-overlay';
-    overlay.id = 'mp-create-overlay';
-    // Inline critical positioning so a stale/missing stylesheet can't hide it
-    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
-    overlay.innerHTML = '<div class="mp-modal" style="background:var(--bg2,#fff);border-radius:16px;max-width:540px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+  var overlay = document.createElement('div');
+  overlay.className = 'mp-modal-overlay';
+  overlay.id = 'mp-create-overlay';
+  overlay.innerHTML = '<div class="mp-modal">'
     + '<div class="mp-modal-hdr">'
     + '<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:var(--text)">+ Create New Portfolio</div>'
     + '<button class="mp-modal-close" data-modal="mp-create-overlay" style="background:transparent;border:none;font-size:20px;color:var(--text3);cursor:pointer">✕</button>'
@@ -14100,46 +14035,35 @@ function mpOpenCreateModal() {
     + '<button onclick="mpCreatePortfolio()" class="btn btn-gold" style="flex:1">✓ Create Portfolio</button>'
     + '<button class="mp-modal-close btn btn-ghost dark" data-modal="mp-create-overlay" style="flex:1">Cancel</button>'
     + '</div></div></div>';
-    document.body.appendChild(overlay);
-    overlay.addEventListener('click', function(ev){ if (ev.target === overlay) overlay.remove(); });
-    var nameEl = document.getElementById('mp-create-name');
-    if (nameEl) setTimeout(function(){ nameEl.focus(); }, 50);
-  } catch (err) {
-    console.error('[Portfolio] mpOpenCreateModal failed:', err);
-    toast('⚠️ Could not open the create dialog: ' + err.message, 'error');
-  }
+  document.body.appendChild(overlay);
 }
 
 function mpCreatePortfolio() {
-  try {
-    var name = (document.getElementById('mp-create-name').value || '').trim();
-    var curr = document.getElementById('mp-create-curr').value || 'NGN';
-    var desc = (document.getElementById('mp-create-desc').value || '').trim();
+  var name = (document.getElementById('mp-create-name').value || '').trim();
+  var curr = document.getElementById('mp-create-curr').value || 'NGN';
+  var desc = (document.getElementById('mp-create-desc').value || '').trim();
 
-    if (!name) { toast('Enter a portfolio name', 'error'); return; }
+  if (!name) { toast('Enter a portfolio name', 'error'); return; }
 
-    var all = mpGetAll();
-    all.forEach(function(p){ p.active = false; });
+  var all = mpGetAll();
+  // Deactivate others
+  all.forEach(function(p){ p.active = false; });
 
-    all.unshift({
-      id:       'mp_' + Date.now(),
-      name:     name,
-      currency: curr,
-      desc:     desc,
-      holdings: [],
-      active:   true,
-      createdAt:new Date().toISOString()
-    });
-    mpSaveAll(all);
+  all.unshift({
+    id:       'mp_' + Date.now(),
+    name:     name,
+    currency: curr,
+    desc:     desc,
+    holdings: [],
+    active:   true,
+    createdAt:new Date().toISOString()
+  });
+  mpSaveAll(all);
 
-    var overlay = document.getElementById('mp-create-overlay');
-    if (overlay) overlay.remove();
-    toast('✓ Portfolio "' + name + '" created', 'success');
-    renderMyPortfolioModule();
-  } catch (err) {
-    console.error('[Portfolio] mpCreatePortfolio failed:', err);
-    toast('⚠️ Could not create portfolio: ' + err.message, 'error');
-  }
+  var overlay = document.getElementById('mp-create-overlay');
+  if (overlay) overlay.remove();
+  toast('✓ Portfolio "' + name + '" created', 'success');
+  renderMyPortfolioModule();
 }
 
 function mpSetActive(portId) {
@@ -15218,132 +15142,27 @@ function gcDeleteSavedScreen(screenId) {
 // Lives inside My Portfolio tab
 // ══════════════════════════════════════════════════════════════════════
 
-// ── Build stamp — confirms which version is live ──────────────────────
-window.EQUITYAI_BUILD = 'unified-2026-08-06';
-
-// ── Analyser state — survives automatic re-renders ────────────────────
-window._mpAnalyserOpen        = window._mpAnalyserOpen        || false;
-window._mpAnalyserResultsHTML = window._mpAnalyserResultsHTML || '';
-window._mpAnalyserTab         = window._mpAnalyserTab         || 'csv';
-window._mpAnalyserPaste       = window._mpAnalyserPaste       || '';
-
-// Guarded re-render — used ONLY by automatic triggers (price polls, Supabase
-// load). Skips the re-render while the analyser is open so the user's upload,
-// pasted text and results are never wiped underneath them.
-function mpAutoRerender() {
-  if (window._mpAnalyserOpen) {
-    console.log('[Portfolio] Auto re-render skipped — Portfolio Analyser is open');
-    return;
-  }
-  if (typeof renderMyPortfolioModule === 'function') renderMyPortfolioModule();
-}
-
-// Capture live analyser input before any re-render destroys the DOM
-function mpAnalyserCaptureState() {
-  var pasteEl = document.getElementById('mp-paste-input');
-  if (pasteEl) window._mpAnalyserPaste = pasteEl.value;
-  var resEl = document.getElementById('mp-analyser-results');
-  if (resEl && resEl.innerHTML.trim()) window._mpAnalyserResultsHTML = resEl.innerHTML;
-}
-
-// Full portfolio diagnostic — run mpPortfolioDiagnose() in DevTools
-// Full NGX daily-coverage audit — run mpPriceCoverage() in DevTools.
-// Confirms how many of the 148 NGX stocks received a LIVE price from the
-// server's EODHD feed today, and lists exactly which ones did not.
-function mpPriceCoverage() {
-  var cov = window._ngxCoverage;
-  if (!cov) {
-    console.warn('No NGX price fetch has completed yet this session. Wait a moment after load, or check the Railway server is reachable at ' + (SIGNAL_ENGINE ? SIGNAL_ENGINE.SERVER_URL : '?') + '/api/prices');
-    return null;
-  }
-  var pct = Math.round(cov.live / cov.total * 100);
-  console.log('%c[NGX Coverage] ' + cov.live + '/' + cov.total + ' stocks got a LIVE EODHD price (' + pct + '%) — as of ' + cov.asOf,
-              'color:' + (cov.live === cov.total ? '#16a34a' : '#d97706') + ';font-weight:700');
-  if (cov.missing.length) {
-    console.warn('%c' + cov.missing.length + ' stock(s) NOT in the feed (showing seed prices):', 'color:#d97706;font-weight:700');
-    console.warn(cov.missing.join(', '));
-    console.log('→ These are a SERVER-side gap: the Railway /api/prices response did not include them. Fix is in signal-server.js (add/rename these EODHD symbols), not in the frontend.');
-  } else {
-    console.log('%c✓ All ' + cov.total + ' NGX stocks are on live EODHD prices — zero seed fallbacks.', 'color:#16a34a;font-weight:700');
-  }
-  return cov;
-}
-
-// Check a single ticker's price freshness — run mpPriceDiagnose('TIP') in DevTools
-function mpPriceDiagnose(ticker) {
-  ticker = (ticker || '').toUpperCase();
-  var s = (typeof ALL_STOCKS !== 'undefined' ? ALL_STOCKS : STOCKS).find(function(x){ return x.t === ticker; });
-  if (!s) { console.warn('Ticker ' + ticker + ' not found in the universe'); return null; }
-  var live = window._ngxLiveTickers && window._ngxLiveTickers[ticker];
-  var r = {
-    ticker:        ticker,
-    displayedPrice: s.price,
-    hasLivePrice:  !!s._priceLive,
-    liveFromEODHD: live ? live.price : '(not in feed)',
-    liveAsOf:      live ? live.at : 'n/a',
-    market:        s.market || 'NGX',
-    verdict:       s._priceLive ? '✓ Live price applied' : '⚠️ SEED PRICE — server did not return this ticker'
-  };
-  console.table(r);
-  if (!s._priceLive) console.warn('→ ' + ticker + ' is showing its hardcoded seed price (' + s.price + '). The server\'s /api/prices response does not include it — likely an EODHD coverage gap. This is a SERVER-side fix (add/rename the symbol in the price fetch list), not a frontend one.');
-  return r;
-}
-
-function mpPortfolioDiagnose() {
-  var sb = (typeof getSupabase === 'function') ? getSupabase() : null;
-  var r = {
-    build:              window.EQUITYAI_BUILD,
-    signedIn:           !!(currentUser && currentUser.id),
-    plan:               currentUser ? currentUser.plan : '(not signed in)',
-    supabaseReady:      !!sb,
-    openCreateModalFn:  typeof window.mpOpenCreateModal,
-    createPortfolioFn:  typeof window.mpCreatePortfolio,
-    saveAIPortfolioFn:  typeof window.saveCurrentPortfolio,
-    autoGuardPresent:   typeof window.mpAutoRerender === 'function',
-    ukLookupPresent:    typeof UK_STOCKS !== 'undefined',
-    cachedPortfolios:   (typeof _mpCache !== 'undefined' && _mpCache) ? _mpCache.length : 'null',
-    generatedPortfolio: (typeof _portData !== 'undefined' && _portData) ? 'ready' : 'none'
-  };
-  console.table(r);
-  if (!r.signedIn) console.warn('⚠️ Not signed in — creating/saving portfolios requires login');
-  if (!r.supabaseReady) console.warn('⚠️ Supabase not connected — saves persist locally only');
-  if (sb && currentUser && currentUser.id) {
-    console.log('Probing user_portfolios table schema...');
-    sb.from('user_portfolios').select('id,name,currency,description,holdings,active,is_ai,ai_backtest,ai_forward,created_at,updated_at').limit(1)
-      .then(function(res){
-        if (res.error) console.error('❌ Table probe FAILED — likely missing column:', res.error.message, res.error.code);
-        else console.log('✓ user_portfolios table has all expected columns');
-      });
-  }
-  return r;
-}
-
 function mpBuildAnalyserHTML() {
-  var isOpen = !!window._mpAnalyserOpen;
   return '<div class="mp-card" id="mp-analyser-card" style="margin-top:16px;border:1.5px solid rgba(26,86,219,.2);background:linear-gradient(135deg,rgba(26,86,219,.03),rgba(124,58,237,.03))">'
     + '<div class="mp-card-hdr">'
     + '<div><div class="mp-card-title">📤 Portfolio Analyser</div>'
     + '<div style="font-size:11px;color:var(--text3);margin-top:2px">Upload your existing portfolio · Backtest · Futuretest · Rebalance</div></div>'
-    + '<button onclick="mpToggleAnalyser()" id="mp-analyser-toggle" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">' + (isOpen ? '✕ Close' : 'Upload Portfolio') + '</button>'
+    + '<button onclick="mpToggleAnalyser()" id="mp-analyser-toggle" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">Upload Portfolio</button>'
     + '</div>'
-    + '<div id="mp-analyser-body" style="display:' + (isOpen ? 'block' : 'none') + '">'
+    + '<div id="mp-analyser-body" style="display:none">'
     + mpBuildAnalyserUploadUI()
     + '</div></div>';
 }
 
 function mpBuildAnalyserUploadUI() {
-  var tab      = window._mpAnalyserTab || 'csv';
-  var isCsv    = tab === 'csv';
-  var pasteVal = (window._mpAnalyserPaste || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  var cached   = window._mpAnalyserResultsHTML || '';
   return '<div id="mp-analyser-upload">'
     + '<div style="display:flex;gap:8px;margin-bottom:14px">'
-    + '<button onclick="mpAnalyserTab(\'csv\')" id="mp-atab-csv" class="btn btn-sm ' + (isCsv?'btn-gold':'btn-ghost dark') + '" style="flex:1">📄 Upload CSV</button>'
-    + '<button onclick="mpAnalyserTab(\'paste\')" id="mp-atab-paste" class="btn btn-sm ' + (isCsv?'btn-ghost dark':'btn-gold') + '" style="flex:1">✏️ Paste Holdings</button>'
+    + '<button onclick="mpAnalyserTab(\'csv\')" id="mp-atab-csv" class="btn btn-gold btn-sm" style="flex:1">📄 Upload CSV</button>'
+    + '<button onclick="mpAnalyserTab(\'paste\')" id="mp-atab-paste" class="btn btn-ghost btn-sm dark" style="flex:1">✏️ Paste Holdings</button>'
     + '</div>'
 
     // CSV upload
-    + '<div id="mp-atab-csv-body" style="display:' + (isCsv?'block':'none') + '">'
+    + '<div id="mp-atab-csv-body">'
     + '<div style="background:var(--bg3);border:2px dashed var(--border);border-radius:10px;padding:24px;text-align:center;margin-bottom:12px;cursor:pointer" onclick="document.getElementById(\'mp-csv-input\').click()">'
     + '<div style="font-size:32px;margin-bottom:8px">📄</div>'
     + '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">Click to upload CSV file</div>'
@@ -15354,40 +15173,26 @@ function mpBuildAnalyserUploadUI() {
     + '</div>'
 
     // Paste input
-    + '<div id="mp-atab-paste-body" style="display:' + (isCsv?'none':'block') + '">'
+    + '<div id="mp-atab-paste-body" style="display:none">'
     + '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">One stock per line: <strong>TICKER, QUANTITY, PURCHASE_PRICE</strong><br>Example: ZENITHBANK, 5000, 85.50</div>'
-    + '<textarea id="mp-paste-input" rows="8" placeholder="ZENITHBANK, 5000, 85.50&#10;DANGCEM, 1000, 950.00&#10;MTNN, 2000, 200.00&#10;SEPLAT, 500, 4500.00" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-family:DM Mono,monospace;font-size:12px;background:var(--bg);color:var(--text);resize:vertical;box-sizing:border-box">' + pasteVal + '</textarea>'
+    + '<textarea id="mp-paste-input" rows="8" placeholder="ZENITHBANK, 5000, 85.50&#10;DANGCEM, 1000, 950.00&#10;MTNN, 2000, 200.00&#10;SEPLAT, 500, 4500.00" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-family:DM Mono,monospace;font-size:12px;background:var(--bg);color:var(--text);resize:vertical;box-sizing:border-box"></textarea>'
     + '<button onclick="mpAnalyserParsePaste()" class="btn btn-gold" style="width:100%;margin-top:10px">Analyse Portfolio</button>'
     + '</div>'
 
-    + '<div id="mp-analyser-results">' + cached + '</div>'
+    + '<div id="mp-analyser-results"></div>'
     + '</div>';
 }
 
 function mpToggleAnalyser() {
-  var card = document.getElementById('mp-analyser-card');
   var body = document.getElementById('mp-analyser-body');
   var btn  = document.getElementById('mp-analyser-toggle');
-  if (!body || !btn) {
-    console.warn('[Analyser] Panel not found — rebuilding My Portfolio');
-    window._mpAnalyserOpen = true;
-    if (typeof renderMyPortfolioModule === 'function') renderMyPortfolioModule();
-    return;
-  }
-  var isOpen = body.style.display !== 'none';
-  if (isOpen) mpAnalyserCaptureState();
-  window._mpAnalyserOpen = !isOpen;
-  body.style.display = isOpen ? 'none' : 'block';
-  btn.textContent    = isOpen ? 'Upload Portfolio' : '✕ Close';
-  if (!isOpen && card && card.scrollIntoView) {
-    setTimeout(function(){ card.scrollIntoView({ behavior:'smooth', block:'nearest' }); }, 60);
-  }
+  if (!body || !btn) return;
+  var open = body.style.display === 'block';
+  body.style.display = open ? 'none' : 'block';
+  btn.textContent = open ? 'Upload Portfolio' : '✕ Close';
 }
 
 function mpAnalyserTab(tab) {
-  window._mpAnalyserTab = tab;
-  var pasteEl = document.getElementById('mp-paste-input');
-  if (pasteEl) window._mpAnalyserPaste = pasteEl.value;
   document.getElementById('mp-atab-csv-body').style.display  = tab === 'csv'   ? 'block' : 'none';
   document.getElementById('mp-atab-paste-body').style.display = tab === 'paste' ? 'block' : 'none';
   document.getElementById('mp-atab-csv').className   = 'btn btn-sm ' + (tab === 'csv'   ? 'btn-gold' : 'btn-ghost dark');
@@ -15414,7 +15219,6 @@ function mpAnalyserProcessText(text) {
   var lines = text.split('\n').map(function(l){ return l.trim(); }).filter(function(l){ return l && !l.startsWith('#'); });
   var holdings = [];
   var errors = [];
-  var unmatched = [];
 
   lines.forEach(function(line, idx) {
     // Support comma, semicolon, tab delimiters
@@ -15430,8 +15234,6 @@ function mpAnalyserProcessText(text) {
     // Look up stock data
     var stockData = (typeof STOCKS !== 'undefined' ? STOCKS : []).find(function(s){ return s.t === ticker; });
     if (!stockData && typeof US_STOCKS !== 'undefined') stockData = US_STOCKS.find(function(s){ return s.t === ticker; });
-    if (!stockData && typeof UK_STOCKS !== 'undefined') stockData = UK_STOCKS.find(function(s){ return s.t === ticker; });
-    if (!stockData) unmatched.push(ticker);
 
     if (!price && stockData) price = stockData.price; // fallback to current price if no purchase price given
 
@@ -15453,11 +15255,6 @@ function mpAnalyserProcessText(text) {
 
   if (errors.length) {
     toast('⚠️ ' + errors.length + ' line(s) skipped — check format', 'warning');
-  }
-  if (unmatched.length) {
-    toast('⚠️ Not in our NGX/US/UK universe: ' + unmatched.slice(0,4).join(', ')
-          + (unmatched.length > 4 ? ' +' + (unmatched.length-4) + ' more' : '')
-          + ' — shown without scores', 'warning');
   }
 
   mpAnalyserRunAnalysis(holdings);
@@ -15518,14 +15315,11 @@ function mpAnalyserRunAnalysis(holdings) {
   // Replacement suggestions — 83%+ GC + BUY signal, not already held
   var heldTickers = holdings.map(function(h){ return h.ticker; });
   // ── Market detection — support NGX, US, and mixed portfolios ─────
+  var ngxCount = holdings.filter(function(h){ return !h.stockData || h.stockData.market !== 'US'; }).length;
   var usCount  = holdings.filter(function(h){ return h.stockData && h.stockData.market === 'US'; }).length;
-  var ukCount  = holdings.filter(function(h){ return h.stockData && h.stockData.market === 'UK'; }).length;
-  var ngxCount = holdings.length - usCount - ukCount;
-  var marketsUsed = (ngxCount>0?1:0) + (usCount>0?1:0) + (ukCount>0?1:0);
-  var isMixed  = marketsUsed > 1;
-  var isUSPort = usCount > 0 && ngxCount === 0 && ukCount === 0; // pure US
-  var isUKPort = ukCount > 0 && ngxCount === 0 && usCount === 0; // pure UK
-  var sym = isUSPort ? '$' : isUKPort ? '£' : '₦';
+  var isMixed  = ngxCount > 0 && usCount > 0;
+  var isUSPort = usCount > 0 && ngxCount === 0; // pure US only
+  var sym = isUSPort ? '$' : (holdings.some(function(h){ return h.stockData && h.stockData.market === 'UK'; }) && !isUSPort) ? '£' : '₦'; // default to NGN for mixed or pure NGX
 
   // For mixed portfolios, tag each holding with its currency
   holdings.forEach(function(h) {
@@ -15535,10 +15329,8 @@ function mpAnalyserRunAnalysis(holdings) {
 
   // Replacement pool — show both markets for mixed portfolios
   var pool = [];
-  if (ngxCount > 0) pool = pool.concat(typeof STOCKS    !== 'undefined' ? STOCKS    : []);
-  if (usCount  > 0) pool = pool.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
-  if (ukCount  > 0) pool = pool.concat(typeof UK_STOCKS !== 'undefined' ? UK_STOCKS : []);
-  if (!pool.length) pool = (typeof STOCKS !== 'undefined' ? STOCKS : []);
+  if (!isUSPort) pool = pool.concat(typeof STOCKS !== 'undefined' ? STOCKS : []);
+  if (isUSPort || isMixed) pool = pool.concat(typeof US_STOCKS !== 'undefined' ? US_STOCKS : []);
   var replacements = pool.filter(function(s){
     return s._gcScore >= 83 && s.sig === 'BUY' && heldTickers.indexOf(s.t) === -1;
   }).sort(function(a,b){ return b._gcScore - a._gcScore; }).slice(0, 5);
@@ -15564,16 +15356,13 @@ function mpAnalyserRunAnalysis(holdings) {
   }
 
   // ── 5. RENDER RESULTS ─────────────────────────────────────────────
+  var sym = isUSPort ? '$' : (holdings.some(function(h){ return h.stockData && h.stockData.market === 'UK'; }) && !isUSPort) ? '£' : '₦';
   var html = '';
 
   // Mixed portfolio notice
   if (isMixed) {
     html += '<div style="background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.2);border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:11px;color:var(--amber)">';
-    var _parts = [];
-    if (ngxCount) _parts.push(ngxCount + ' NGX');
-    if (usCount)  _parts.push(usCount  + ' US');
-    if (ukCount)  _parts.push(ukCount  + ' UK');
-    html += '⚠️ <strong>Mixed portfolio detected</strong> — ' + _parts.join(' · ') + ' holding(s). P&L shown in each holding\'s own currency; totals are indicative only.';
+    html += '⚠️ <strong>Mixed portfolio detected</strong> — ' + ngxCount + ' NGX stock(s) and ' + usCount + ' US stock(s). P&L shown in respective currencies per holding.';
     html += '</div>';
   }
 
@@ -15668,7 +15457,6 @@ function mpAnalyserRunAnalysis(holdings) {
   html += '<div style="margin-top:14px"><button onclick="mpAnalyserSaveToPortfolio()" class="btn btn-gold" style="width:100%;justify-content:center;padding:12px;background:linear-gradient(135deg,#059669,#0e7490)">📈 Save to My Portfolio for Live P&L Tracking</button></div>';
 
   resultsEl.innerHTML = html;
-  window._mpAnalyserResultsHTML = html;
   window._analyserFuture = futureMonths;
   window._analyserSym    = sym;
   window._analyserIsUS   = isUSPort;
