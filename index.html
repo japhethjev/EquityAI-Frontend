@@ -13264,23 +13264,16 @@ function mpRenderDashboard(root, port, calc, all) {
   ];
   kpiData.forEach(function(k) {
     html += '<div style="background:'+k.bg+';border-radius:10px;padding:12px 14px">';
-    html += '<div id="'+k.id+'" class="num-animate" style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:'+k.c+';margin-bottom:2px">'+k.v+'</div>';
+    html += '<div id="'+k.id+'" class="mp-kpi-value" style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:'+k.c+';margin-bottom:2px;font-variant-numeric:tabular-nums">'+k.v+'</div>';
     html += '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.04em">'+k.l+'</div>';
     html += '<div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:1px">'+k.s+'</div>';
     html += '</div>';
   });
   html += '</div></div>';
 
-  // Schedule countup animation after render
-  var _kpiCountup = kpiData;
-  var _kpiSym = sym;
-  setTimeout(function() {
-    _kpiCountup.forEach(function(k) {
-      if (k.raw === null) return;
-      var el = document.getElementById(k.id);
-      if (el) animateCountup(el, k.raw, 900, _kpiSym, '');
-    });
-  }, 150);
+  // KPI values are intentionally static. Live-price refreshes may change the
+  // calculated value on a later render, but we do not replay a count-up
+  // animation because it makes financial figures appear to shake.
 
   // ── CHARTS ROW ───────────────────────────────────────────────────
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">';
@@ -14068,10 +14061,20 @@ function mpCreatePortfolio() {
 
 function mpSetActive(portId) {
   var all = mpGetAll();
-  if (!all.length) return;
+  if (!all.length || !portId) return;
+
+  // Defensive guard: never clear the active portfolio for an invalid id.
+  var target = all.find(function(p){ return String(p.id) === String(portId); });
+  if (!target) {
+    console.warn('[Portfolio] Cannot open unknown portfolio:', portId);
+    return;
+  }
+
+  // Already active: no re-render and no unnecessary cloud writes.
+  if (target.active) return;
 
   // Update active flag in cache immediately
-  all.forEach(function(p){ p.active = (p.id === portId); });
+  all.forEach(function(p){ p.active = (String(p.id) === String(portId)); });
   _mpCache = all;
   try { localStorage.setItem(MP_KEY, JSON.stringify(all)); } catch(e) {}
 
@@ -14135,29 +14138,59 @@ function mpCloseModal(id) {
 
 // Event delegation — handles all data-attribute driven clicks in My Portfolio
 document.addEventListener('click', function(e) {
-  var t = e.target.closest ? (e.target.closest('.gc-kpi-clickable') || e.target.closest('.buffett-score-clickable') || e.target) : e.target;
+  var target = e.target;
+  if (!target) return;
+
+  // Portfolio actions use closest() so the first click works even when the
+  // user clicks an icon/span nested inside a button. Handle these first.
+  var switchBtn = target.closest ? target.closest('.mp-switch-btn') : null;
+  if (switchBtn && switchBtn.dataset.id) {
+    e.preventDefault();
+    e.stopPropagation();
+    mpSetActive(switchBtn.dataset.id);
+    return;
+  }
+
+  var openBtn = target.closest ? target.closest('.mp-open-btn') : null;
+  if (openBtn && openBtn.dataset.id) {
+    e.preventDefault();
+    e.stopPropagation();
+    mpSetActive(openBtn.dataset.id);
+    return;
+  }
+
+  var deleteBtn = target.closest ? target.closest('.mp-del-btn') : null;
+  if (deleteBtn && deleteBtn.dataset.id) {
+    e.preventDefault();
+    e.stopPropagation();
+    mpDelete(deleteBtn.dataset.id);
+    return;
+  }
+
+  var closeBtn = target.closest ? target.closest('.mp-modal-close') : null;
+  if (closeBtn && closeBtn.dataset.modal) {
+    mpCloseModal(closeBtn.dataset.modal);
+    return;
+  }
+
   // Greatness Score KPI card
-  if ((t.classList.contains('gc-kpi-clickable') || t.closest && t.closest('.gc-kpi-clickable')) && typeof gcOpenScorecardModal === 'function') {
-    var card = t.classList.contains('gc-kpi-clickable') ? t : t.closest('.gc-kpi-clickable');
-    if (card && card.dataset.gcTicker) { gcOpenScorecardModal(card.dataset.gcTicker); return; }
+  var gcCard = target.closest ? target.closest('.gc-kpi-clickable') : null;
+  if (gcCard && gcCard.dataset.gcTicker && typeof gcOpenScorecardModal === 'function') {
+    gcOpenScorecardModal(gcCard.dataset.gcTicker);
+    return;
   }
+
   // Buffett Score badge — stock card and signal panel circle
-  var bCard = t.classList.contains('buffett-score-clickable') ? t : (t.closest && t.closest('.buffett-score-clickable'));
+  var bCard = target.closest ? target.closest('.buffett-score-clickable') : null;
   if (bCard && bCard.dataset.buffettTicker && typeof buffettOpenModal === 'function') {
-    buffettOpenModal(bCard.dataset.buffettTicker); return;
+    buffettOpenModal(bCard.dataset.buffettTicker);
+    return;
   }
-  // Modal close buttons
-  if (t.classList.contains('mp-modal-close') && t.dataset.modal) { mpCloseModal(t.dataset.modal); return; }
-  // Portfolio open button
-  if (t.classList.contains('mp-open-btn') && t.dataset.id) { mpSetActive(t.dataset.id); return; }
-  // Portfolio delete button
-  if (t.classList.contains('mp-del-btn') && t.dataset.id) { mpDelete(t.dataset.id); return; }
-  // Portfolio switcher pill
-  if (t.classList.contains('mp-switch-btn') && t.dataset.id) { mpSetActive(t.dataset.id); return; }
+
   // Holding row click
-  if (t.classList.contains('mp-holding-data-row') || t.closest && t.closest('.mp-holding-data-row')) {
-    var row = t.classList.contains('mp-holding-data-row') ? t : t.closest('.mp-holding-data-row');
-    if (row && row.dataset.ticker) mpShowHoldingDetail(row.dataset.ticker);
+  var row = target.closest ? target.closest('.mp-holding-data-row') : null;
+  if (row && row.dataset.ticker) {
+    mpShowHoldingDetail(row.dataset.ticker);
     return;
   }
 });
