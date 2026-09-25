@@ -312,7 +312,7 @@ button:active:not(:disabled){transform:scale(.97);transition:transform .08s!impo
 
 /* Number countup — P&L values fade in */
 @keyframes numFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-.num-animate{animation:numFadeIn .4s ease forwards}
+.num-animate{animation:none!important;transform:none!important;opacity:1!important}
 
 /* Holdings row hover */
 .mp-holding-row:hover{background:var(--bg3)!important;cursor:pointer}
@@ -14164,6 +14164,17 @@ document.addEventListener('click', function(e) {
 
   // Portfolio actions use closest() so the first click works even when the
   // user clicks an icon/span nested inside a button. Handle these first.
+  // Main portfolio-list Details button.
+  // Handle this before other portfolio actions so a single click always
+  // switches the active portfolio immediately.
+  var detailsBtn = target.closest ? target.closest('.mp-details-btn') : null;
+  if (detailsBtn && detailsBtn.dataset.id) {
+    e.preventDefault();
+    e.stopPropagation();
+    mpSetActive(detailsBtn.dataset.id);
+    return;
+  }
+
   var switchBtn = target.closest ? target.closest('.mp-switch-btn') : null;
   if (switchBtn && switchBtn.dataset.id) {
     e.preventDefault();
