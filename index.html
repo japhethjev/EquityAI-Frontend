@@ -13050,7 +13050,7 @@ function renderMyPortfolioModule() {
       // Right — action buttons
       html += '<div style="display:flex;gap:6px;flex-shrink:0">';
       if (!isActive) {
-        html += '<button class="mp-switch-btn" data-id="'+p.id+'" style="background:var(--primary);color:#fff;border:none;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">👁 View</button>';
+        html += '<button type="button" class="mp-details-btn" data-id="'+p.id+'" style="background:#fff;color:var(--primary);border:2px solid var(--primary);border-radius:8px;padding:7px 16px;font-size:12px;font-weight:800;cursor:pointer;min-width:78px">Details</button>';
       } else {
         html += '<span style="font-size:11px;font-weight:700;color:rgba(255,255,255,.8);padding:6px 10px">✓ Viewing</span>';
       }
@@ -14063,36 +14063,57 @@ function mpSetActive(portId) {
   var all = mpGetAll();
   if (!all.length || !portId) return;
 
-  // Defensive guard: never clear the active portfolio for an invalid id.
-  var target = all.find(function(p){ return String(p.id) === String(portId); });
-  if (!target) {
-    console.warn('[Portfolio] Cannot open unknown portfolio:', portId);
+  var selected = all.find(function(p){ return String(p.id) === String(portId); });
+  if (!selected) {
+    console.warn('Portfolio not found:', portId);
     return;
   }
 
-  // Already active: no re-render and no unnecessary cloud writes.
-  if (target.active) return;
-
-  // Update active flag in cache immediately
+  // No network/database work is required to open portfolio details.
+  // Make the selection locally first so Details always responds on one click.
+  var alreadyActive = !!selected.active;
   all.forEach(function(p){ p.active = (String(p.id) === String(portId)); });
   _mpCache = all;
-  try { localStorage.setItem(MP_KEY, JSON.stringify(all)); } catch(e) {}
 
-  // Render immediately from cache — no Supabase reload
+  try {
+    localStorage.setItem(MP_KEY, JSON.stringify(all));
+  } catch(e) {
+    console.warn('Could not persist active portfolio locally:', e);
+  }
+
+  // Render immediately from local cache. This applies to every portfolio,
+  // including portfolios created by the user later.
   window._mpSkipReload = true;
   renderMyPortfolioModule();
 
-  // Save active flag to Supabase in background (fire and forget)
-  var sb = getSupabase ? getSupabase() : null;
+  // Move the newly selected details panel into view without delaying rendering.
+  requestAnimationFrame(function() {
+    var detail =
+      document.getElementById('mp-active-portfolio') ||
+      document.getElementById('mp-portfolio-detail') ||
+      document.querySelector('.mp-portfolio-detail') ||
+      document.querySelector('[data-mp-active-detail]');
+    if (detail && !alreadyActive) {
+      detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+
+  // Persist active state to Supabase asynchronously after the UI has opened.
+  var sb = (typeof getSupabase === 'function') ? getSupabase() : null;
   if (sb && currentUser && currentUser.id) {
     all.forEach(function(p) {
       sb.from('user_portfolios').upsert({
-        id: p.id, user_id: currentUser.id, name: p.name,
-        currency: p.currency || 'NGN', description: p.desc || '',
-        holdings: p.holdings || [], active: !!p.active,
-        is_ai: !!p.isAI, ai_backtest: p.aiBacktest || null,
-        ai_forward: p.aiForward || null, updated_at: new Date().toISOString()
-      }, { onConflict: 'id' }).then(function(){}).catch(function(){});
+        id: p.id,
+        user_id: currentUser.id,
+        name: p.name,
+        currency: p.currency || 'NGN',
+        description: p.desc || '',
+        holdings: p.holdings || [],
+        active: !!p.active,
+        created_at: p.createdAt || p.created_at || new Date().toISOString()
+      }).then(function(){}, function(err){
+        console.warn('Background portfolio active-state sync failed:', err);
+      });
     });
   }
 }
