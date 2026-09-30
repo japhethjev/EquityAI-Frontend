@@ -1168,6 +1168,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
     <div class="dash-tabs">
       <button class="dash-tab" onclick="switchDashTab('myspace',this)" id="tab-myspace" style="background:linear-gradient(135deg,#059669,#0891b2);color:#fff;border:none">👤 My Dashboard</button>
       <button class="dash-tab active" id="tab-watchlist" onclick="switchDashTab('watchlist',this)">📊 Watchlist</button>
+      <button class="dash-tab" id="tab-ask-equityai" onclick="switchDashTab('askequityai',this)" style="background:linear-gradient(135deg,#1e40af,#7c3aed);color:#fff;border:none">🤖 Ask EquityAI</button>
       <button class="dash-tab" onclick="switchDashTab('screener',this)">🔍 Screener</button>
       <button class="dash-tab" onclick="switchDashTab('compare',this)">⚖️ Compare</button>
       <button class="dash-tab" onclick="switchDashTab('myportfolio',this)" id="tab-myportfolio" style="background:linear-gradient(135deg,#059669,#0e7490);color:#fff;border:none">📈 My Portfolio</button>
@@ -1185,6 +1186,63 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
           <div style="font-size:36px;margin-bottom:12px">👤</div>
           <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px">Loading your dashboard...</div>
         </div>
+      </div>
+    </div>
+
+    <!-- ASK EQUITYAI — SECURE RAG -->
+    <div id="dtab-askequityai" class="dash-tab-content">
+      <div style="max-width:900px;margin:0 auto">
+
+        <div style="background:linear-gradient(135deg,#0f172a,#1e3a8a);border-radius:16px;padding:28px;color:#fff;margin-bottom:18px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#c4b5fd;margin-bottom:8px">EquityAI Research Assistant</div>
+          <div style="font-family:Syne,sans-serif;font-size:25px;font-weight:800;margin-bottom:8px">🤖 Ask EquityAI</div>
+          <div style="font-size:13px;line-height:1.7;color:rgba(255,255,255,.75);max-width:680px">
+            Ask questions across EquityAI's indexed research and company documents. Answers are grounded in retrieved source material and include document references.
+          </div>
+        </div>
+
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px">
+          <label for="equityai-rag-question" style="display:block;font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px">Your question</label>
+
+          <textarea
+            id="equityai-rag-question"
+            rows="3"
+            maxlength="1500"
+            placeholder="e.g. What is the IPO offer price?"
+            style="width:100%;box-sizing:border-box;resize:vertical;border:1px solid var(--border2);border-radius:10px;padding:13px 14px;font:inherit;font-size:13px;line-height:1.6;background:var(--bg);color:var(--text);outline:none"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();askEquityAI();}"
+          ></textarea>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;flex-wrap:wrap">
+            <div style="font-size:10px;color:var(--text3)">Press Enter to ask · Shift+Enter for a new line</div>
+            <button
+              id="equityai-rag-btn"
+              class="btn btn-gold"
+              onclick="askEquityAI()"
+              style="min-width:145px;justify-content:center"
+            >Ask EquityAI →</button>
+          </div>
+        </div>
+
+        <div id="equityai-rag-status" style="display:none;text-align:center;padding:28px;color:var(--text3);font-size:12px">
+          <div style="font-size:24px;margin-bottom:8px">🤖</div>
+          Searching EquityAI research…
+        </div>
+
+        <div id="equityai-rag-result" style="display:none">
+          <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:14px">
+            <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--primary);margin-bottom:12px">EquityAI Answer</div>
+            <div id="equityai-rag-answer" style="font-size:14px;line-height:1.8;color:var(--text);white-space:pre-wrap"></div>
+          </div>
+
+          <div id="equityai-rag-sources-wrap" style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:20px">
+            <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);margin-bottom:12px">Sources</div>
+            <div id="equityai-rag-sources"></div>
+          </div>
+        </div>
+
+        <div id="equityai-rag-error" style="display:none;background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.22);border-radius:12px;padding:14px 16px;color:var(--red);font-size:12px;line-height:1.6"></div>
+
       </div>
     </div>
 
@@ -4467,6 +4525,118 @@ setTimeout(function() {
 }, 100);
 
 // ══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+// ASK EQUITYAI — SECURE RAG CLIENT
+// Calls Netlify proxy only. No backend API key in browser.
+// ══════════════════════════════════════════════════════════
+
+var _equityAIAskPending = false;
+
+function equityAIEscape(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+async function askEquityAI() {
+  var input   = document.getElementById('equityai-rag-question');
+  var button  = document.getElementById('equityai-rag-btn');
+  var status  = document.getElementById('equityai-rag-status');
+  var result  = document.getElementById('equityai-rag-result');
+  var answer  = document.getElementById('equityai-rag-answer');
+  var sources = document.getElementById('equityai-rag-sources');
+  var srcWrap = document.getElementById('equityai-rag-sources-wrap');
+  var errorEl = document.getElementById('equityai-rag-error');
+
+  if (!input || _equityAIAskPending) return;
+
+  var question = (input.value || '').trim();
+
+  if (!question) {
+    errorEl.textContent = 'Please enter a question.';
+    errorEl.style.display = 'block';
+    input.focus();
+    return;
+  }
+
+  _equityAIAskPending = true;
+  button.disabled = true;
+  button.textContent = 'Searching…';
+  status.style.display = 'block';
+  result.style.display = 'none';
+  errorEl.style.display = 'none';
+
+  try {
+    var response = await fetch('/.netlify/functions/ask', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ question: question })
+    });
+
+    var data;
+    try {
+      data = await response.json();
+    } catch (_) {
+      data = {};
+    }
+
+    if (!response.ok) {
+      var msg = data.detail || data.error || 'Unable to complete the request.';
+
+      if (response.status === 429) {
+        msg = 'Too many requests. Please wait a moment and try again.';
+      } else if (response.status >= 500) {
+        msg = 'EquityAI research is temporarily unavailable. Please try again shortly.';
+      }
+
+      throw new Error(msg);
+    }
+
+    answer.textContent = data.answer || 'No answer was returned.';
+
+    var sourceList = Array.isArray(data.sources) ? data.sources : [];
+
+    if (sourceList.length) {
+      sources.innerHTML = sourceList.map(function(src) {
+        var documentName = equityAIEscape(src.document || 'Source document');
+        var page = src.page != null ? 'Page ' + equityAIEscape(src.page) : '';
+        var score = typeof src.score === 'number'
+          ? ' · relevance ' + Math.round(src.score * 100) + '%'
+          : '';
+
+        return '<div style="padding:10px 12px;border:1px solid var(--border);border-radius:9px;margin-bottom:8px;background:var(--bg)">'
+          + '<div style="font-size:12px;font-weight:700;color:var(--text)">📄 ' + documentName + '</div>'
+          + '<div style="font-size:10px;color:var(--text3);margin-top:3px">' + page + equityAIEscape(score) + '</div>'
+          + '</div>';
+      }).join('');
+
+      srcWrap.style.display = 'block';
+    } else {
+      sources.innerHTML = '';
+      srcWrap.style.display = 'none';
+    }
+
+    result.style.display = 'block';
+
+  } catch (err) {
+    errorEl.textContent = err && err.message
+      ? err.message
+      : 'Unable to reach EquityAI research.';
+    errorEl.style.display = 'block';
+
+  } finally {
+    _equityAIAskPending = false;
+    button.disabled = false;
+    button.textContent = 'Ask EquityAI →';
+    status.style.display = 'none';
+  }
+}
+
 // PAGE NAVIGATION
 // ══════════════════════════════════════════════════════════
 function showPage(page, subview){
