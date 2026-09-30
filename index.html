@@ -4602,16 +4602,66 @@ async function askEquityAI() {
     var sourceList = Array.isArray(data.sources) ? data.sources : [];
 
     if (sourceList.length) {
-      sources.innerHTML = sourceList.map(function(src) {
-        var documentName = equityAIEscape(src.document || 'Source document');
-        var page = src.page != null ? 'Page ' + equityAIEscape(src.page) : '';
-        var score = typeof src.score === 'number'
-          ? ' · relevance ' + Math.round(src.score * 100) + '%'
-          : '';
+      // Consolidate multiple retrieved chunks from the same document/page.
+      var groupedSources = {};
+
+      sourceList.forEach(function(src) {
+        var documentName = src.document || 'Source document';
+        var pageValue = src.page != null ? String(src.page) : '';
+        var key = documentName + '::' + pageValue;
+
+        if (!groupedSources[key]) {
+          groupedSources[key] = {
+            document: documentName,
+            page: pageValue,
+            passages: 0,
+            highestScore: null
+          };
+        }
+
+        groupedSources[key].passages += 1;
+
+        if (typeof src.score === 'number') {
+          if (
+            groupedSources[key].highestScore === null ||
+            src.score > groupedSources[key].highestScore
+          ) {
+            groupedSources[key].highestScore = src.score;
+          }
+        }
+      });
+
+      var consolidatedSources = Object.keys(groupedSources)
+        .map(function(key) {
+          return groupedSources[key];
+        })
+        .sort(function(a, b) {
+          return (b.highestScore || 0) - (a.highestScore || 0);
+        });
+
+      sources.innerHTML = consolidatedSources.map(function(src) {
+        var documentName = equityAIEscape(src.document);
+        var meta = [];
+
+        if (src.page) {
+          meta.push('Page ' + equityAIEscape(src.page));
+        }
+
+        meta.push(
+          src.passages + ' supporting passage' +
+          (src.passages === 1 ? '' : 's')
+        );
+
+        if (typeof src.highestScore === 'number') {
+          meta.push(
+            'highest relevance ' +
+            Math.round(src.highestScore * 100) + '%'
+          );
+        }
 
         return '<div style="padding:10px 12px;border:1px solid var(--border);border-radius:9px;margin-bottom:8px;background:var(--bg)">'
           + '<div style="font-size:12px;font-weight:700;color:var(--text)">📄 ' + documentName + '</div>'
-          + '<div style="font-size:10px;color:var(--text3);margin-top:3px">' + page + equityAIEscape(score) + '</div>'
+          + '<div style="font-size:10px;color:var(--text3);margin-top:3px">' + meta.join(' · ') + '</div>'
           + '</div>';
       }).join('');
 
