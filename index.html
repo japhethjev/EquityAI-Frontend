@@ -3915,15 +3915,23 @@ function initDashboard() {
       .then(function(result) {
         if (result && result.data && result.data.plan) {
           var dbPlan = result.data.plan;
+          var dbIsAdmin = result.data.is_admin === true;
+
           if (dbPlan !== session.plan) {
             console.log('[initDashboard] Plan updated from Supabase:', session.plan, '→', dbPlan);
-            session.plan = dbPlan;
-            session.isAdmin = result.data.is_admin || false;
-            saveSession(session);
-            // Update localStorage users array too
-            var users = getUsers();
-            var ui = users.findIndex(function(u){ return u.id === session.id; });
-            if (ui >= 0) { users[ui].plan = dbPlan; saveUsers(users); }
+          }
+
+          session.plan = dbPlan;
+          session.isAdmin = dbIsAdmin;
+          saveSession(session);
+
+          // Keep local user cache aligned with Supabase
+          var users = getUsers();
+          var ui = users.findIndex(function(u){ return u.id === session.id; });
+          if (ui >= 0) {
+            users[ui].plan = dbPlan;
+            users[ui].isAdmin = dbIsAdmin;
+            saveUsers(users);
           }
         }
         _initDashboardCore(session);
@@ -4770,7 +4778,14 @@ function doLogin(){
         }
         // Fetch profile from DB
         return sbGetProfile(res.data.user.id).then(function(profile) {
-          var user = profile || {
+          var user = profile ? {
+            id:        profile.id,
+            name:      profile.name || email.split('@')[0],
+            email:     profile.email || email,
+            plan:      profile.plan || 'free',
+            isAdmin:   profile.is_admin === true,
+            createdAt: profile.created_at || res.data.user.created_at,
+          } : {
             id:        res.data.user.id,
             name:      email.split('@')[0],
             email:     email,
@@ -10541,18 +10556,20 @@ function onPaymentSuccess(plan){
 // ══════════════════════════════════════════════════════════
 function initAdmin(){
   var session=getSession();
-  if(!session){showPage('auth','login');return;}
-  // Master admin always gets access
-  if(session.isAdmin||session.email==='japhethjev@gmail.com'){
-    session.plan='enterprise';
-    currentUser=session;
-  } else if(session.plan!=='enterprise'){
-    showPage('dashboard');
-    toast('Admin panel requires Enterprise plan','error');
+
+  if(!session){
+    showPage('auth','login');
     return;
-  } else {
-    currentUser=session;
   }
+
+  // Administrative access is controlled exclusively by Supabase is_admin.
+  if(session.isAdmin !== true){
+    showPage('dashboard');
+    toast('Administrator access required','error');
+    return;
+  }
+
+  currentUser=session;
   adminRefreshAll();
 }
 
