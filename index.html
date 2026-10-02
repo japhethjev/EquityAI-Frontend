@@ -1532,6 +1532,7 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
       <div class="admin-nav-item" onclick="adminNav('controls',this)">⚙️ Manual Controls</div>
       <div class="admin-nav-item" onclick="adminNav('signal-mgmt',this)">📡 Signal Management</div>
       <div class="admin-nav-item" onclick="adminNav('fundamentals',this)">📂 Fundamentals Pipeline</div>
+      <div class="admin-nav-item" onclick="adminNav('rag-documents',this)">🧠 RAG Documents</div>
       <div class="adm-nav-section">Reports</div>
       <div class="admin-nav-item" onclick="adminNav('reports',this)">📋 Reports</div>
       <div class="admin-nav-item" onclick="adminNav('logs',this)">🗂️ Activity Logs</div>
@@ -2115,6 +2116,9 @@ input:focus,select:focus{outline:none;border-color:var(--primary)!important;box-
 
       <!-- Fundamentals Pipeline section — content rendered into .admin-main by renderFundamentalsPanel() -->
       <div id="admin-fundamentals" class="hidden"></div>
+
+      <!-- RAG Document Management -->
+      <div id="admin-rag-documents" class="hidden"></div>
 
     </main>
   </div>
@@ -10610,14 +10614,15 @@ function adminNav(section,el){
   if(el)el.classList.add('active');
   var sections=['admin-overview','admin-revenue','admin-usage','admin-signals',
                 'admin-users','admin-members','admin-controls','admin-signal-mgmt','admin-reports','admin-logs',
-                'admin-api-keys','admin-fundamentals'];
+                'admin-api-keys','admin-fundamentals','admin-rag-documents'];
   sections.forEach(function(id){var d=document.getElementById(id);if(d)d.classList.add('hidden');});
   var target=document.getElementById('admin-'+section);
   if(target)target.classList.remove('hidden');
   var titles={'overview':'Dashboard','revenue':'Revenue & Subscriptions','usage':'System Usage',
               'signals':'AI Signal Analytics','users':'All Users','members':'Team Members',
               'controls':'Manual Controls','reports':'Generate Reports','logs':'Activity Logs',
-              'fundamentals':'Fundamentals Pipeline'};
+              'fundamentals':'Fundamentals Pipeline',
+              'rag-documents':'RAG Document Management'};
   document.getElementById('admin-section-title').textContent=titles[section]||section;
   if(section==='members'){renderMembersList();refreshAdminStats();}
   if(section==='overview'){renderAdminOverview();}
@@ -10629,6 +10634,7 @@ function adminNav(section,el){
   if(section==='reports'){renderReportCards();}
   if(section==='logs'){renderLogs();}
   if(section==='fundamentals'){renderFundamentalsPanel();}
+  if(section==='rag-documents'){renderRagDocumentsPanel();}
 }
 
 function openAddMemberModal(){
@@ -12518,6 +12524,546 @@ function adminRefreshAll() {
   if (activeItem) activeItem.click();
   else renderAdminOverview();
 }
+
+
+// ══════════════════════════════════════════════════════════════════
+// RAG DOCUMENT MANAGEMENT — Admin Panel UI
+// Upload, list and delete documents in the EquityAI RAG knowledge base
+// ══════════════════════════════════════════════════════════════════
+
+var _ragDocuments = [];
+
+function ragEscape(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function renderRagDocumentsPanel() {
+  var main = document.querySelector('.admin-main');
+  if (!main) main = document.getElementById('admin-main');
+  if (!main) return;
+
+  main.innerHTML =
+    '<div style="max-width:1000px">' +
+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:24px">' +
+        '<div>' +
+          '<div style="font-size:22px;font-weight:700;color:var(--text);margin-bottom:6px">🧠 RAG Document Management</div>' +
+          '<div style="font-size:13px;color:var(--text3)">Upload company reports into the EquityAI knowledge base and manage currently indexed documents.</div>' +
+        '</div>' +
+        '<button class="btn btn-ghost btn-sm" onclick="loadRagDocuments()">↻ Refresh</button>' +
+      '</div>' +
+
+      '<div id="rag-status" style="background:var(--bg2);border-radius:10px;padding:14px 18px;margin-bottom:24px;font-size:13px;color:var(--text3)">' +
+        'Loading RAG document status...' +
+      '</div>' +
+
+      '<div style="background:var(--bg2);border-radius:12px;padding:20px;margin-bottom:24px">' +
+
+        '<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:5px">Upload Company Report</div>' +
+        '<div style="font-size:12px;color:var(--text3);margin-bottom:18px">PDF reports are ingested, chunked and embedded into the EquityAI RAG knowledge base.</div>' +
+
+        '<form id="rag-upload-form">' +
+
+          '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px">' +
+
+            '<div>' +
+              '<label class="form-label">Company Name *</label>' +
+              '<input id="rag-company-name" class="form-input" type="text" required placeholder="e.g. Dangote Petroleum Refinery FZE">' +
+            '</div>' +
+
+            '<div>' +
+              '<label class="form-label">Ticker</label>' +
+              '<input id="rag-ticker" class="form-input" type="text" placeholder="Optional">' +
+            '</div>' +
+
+            '<div>' +
+              '<label class="form-label">Exchange</label>' +
+              '<input id="rag-exchange" class="form-input" type="text" placeholder="Optional">' +
+            '</div>' +
+
+            '<div>' +
+              '<label class="form-label">Market</label>' +
+              '<input id="rag-market" class="form-input" type="text" placeholder="Optional">' +
+            '</div>' +
+
+            '<div>' +
+              '<label class="form-label">Country *</label>' +
+              '<input id="rag-country" class="form-input" type="text" required placeholder="Nigeria">' +
+            '</div>' +
+
+            '<div>' +
+              '<label class="form-label">Currency *</label>' +
+              '<input id="rag-currency" class="form-input" type="text" required placeholder="NGN">' +
+            '</div>' +
+
+            '<div>' +
+              '<label class="form-label">Report Type *</label>' +
+              '<select id="rag-report-type" class="form-input" required>' +
+                '<option value="annual">Annual</option>' +
+                '<option value="quarterly">Quarterly</option>' +
+                '<option value="half_year">Half Year</option>' +
+                '<option value="other">Other</option>' +
+              '</select>' +
+            '</div>' +
+
+            '<div>' +
+              '<label class="form-label">Fiscal Year *</label>' +
+              '<input id="rag-fiscal-year" class="form-input" type="number" min="1900" max="2200" required placeholder="2025">' +
+            '</div>' +
+
+            '<div>' +
+              '<label class="form-label">Fiscal Quarter</label>' +
+              '<select id="rag-fiscal-quarter" class="form-input">' +
+                '<option value="">Not applicable</option>' +
+                '<option value="1">Q1</option>' +
+                '<option value="2">Q2</option>' +
+                '<option value="3">Q3</option>' +
+                '<option value="4">Q4</option>' +
+              '</select>' +
+            '</div>' +
+
+            '<div>' +
+              '<label class="form-label">Fiscal Half</label>' +
+              '<select id="rag-fiscal-half" class="form-input">' +
+                '<option value="">Not applicable</option>' +
+                '<option value="1">H1</option>' +
+                '<option value="2">H2</option>' +
+              '</select>' +
+            '</div>' +
+
+            '<div>' +
+              '<label class="form-label">Period Start</label>' +
+              '<input id="rag-period-start" class="form-input" type="date">' +
+            '</div>' +
+
+            '<div>' +
+              '<label class="form-label">Period End *</label>' +
+              '<input id="rag-period-end" class="form-input" type="date" required>' +
+            '</div>' +
+
+            '<div>' +
+              '<label class="form-label">Publication Date</label>' +
+              '<input id="rag-publication-date" class="form-input" type="date">' +
+            '</div>' +
+
+            '<div>' +
+              '<label class="form-label">Reporting Period</label>' +
+              '<input id="rag-reporting-period" class="form-input" type="text" placeholder="e.g. FY2025">' +
+            '</div>' +
+
+          '</div>' +
+
+          '<div style="margin-top:16px">' +
+            '<label class="form-label">Financial Report PDF *</label>' +
+            '<input id="rag-file" type="file" accept="application/pdf,.pdf" required style="display:block;width:100%;padding:12px;border:1px dashed var(--border);border-radius:8px;background:var(--bg);color:var(--text)">' +
+          '</div>' +
+
+          '<div style="display:flex;align-items:center;gap:12px;margin-top:18px">' +
+            '<button id="rag-upload-button" type="submit" class="btn btn-gold">⬆ Upload & Ingest</button>' +
+            '<span id="rag-upload-message" style="font-size:12px;color:var(--text3)"></span>' +
+          '</div>' +
+
+        '</form>' +
+      '</div>' +
+
+      '<div style="background:var(--bg2);border-radius:12px;padding:20px">' +
+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
+          '<div>' +
+            '<div style="font-size:15px;font-weight:700;color:var(--text)">Knowledge Base Documents</div>' +
+            '<div style="font-size:12px;color:var(--text3);margin-top:3px">Documents currently available to EquityAI RAG.</div>' +
+          '</div>' +
+          '<span id="rag-document-count" style="font-size:12px;color:var(--text3)">0 documents</span>' +
+        '</div>' +
+
+        '<div id="rag-document-list">' +
+          '<div style="padding:20px;text-align:center;color:var(--text3)">Loading documents...</div>' +
+        '</div>' +
+
+      '</div>' +
+
+    '</div>';
+
+  var form = document.getElementById('rag-upload-form');
+
+  if (form) {
+    form.addEventListener('submit', function(event) {
+      event.preventDefault();
+      uploadRagDocument();
+    });
+  }
+
+  loadRagDocuments();
+}
+
+async function ragGatewayRequest(options) {
+  var sb = getSupabase();
+
+  if (!sb) {
+    throw new Error(
+      'Supabase authentication is unavailable.'
+    );
+  }
+
+  var sessionResult =
+    await sb.auth.getSession();
+
+  var session =
+    sessionResult &&
+    sessionResult.data
+      ? sessionResult.data.session
+      : null;
+
+  if (!session || !session.access_token) {
+    throw new Error(
+      'Your administrator session has expired. Please sign in again.'
+    );
+  }
+
+  var requestOptions =
+    Object.assign({}, options || {});
+
+  var headers =
+    new Headers(requestOptions.headers || {});
+
+  headers.set(
+    'Authorization',
+    'Bearer ' + session.access_token
+  );
+
+  requestOptions.headers = headers;
+
+  var response = await fetch(
+    '/.netlify/functions/rag-documents',
+    requestOptions
+  );
+
+  var text = await response.text();
+  var body = {};
+
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch (error) {
+      body = { detail: text };
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      body.detail ||
+      ('RAG request failed with HTTP ' + response.status)
+    );
+  }
+
+  return body;
+}
+
+async function loadRagDocuments() {
+  var status = document.getElementById('rag-status');
+  var list = document.getElementById('rag-document-list');
+  var count = document.getElementById('rag-document-count');
+
+  if (status) {
+    status.textContent = 'Connecting to EquityAI RAG service...';
+  }
+
+  try {
+    var body = await ragGatewayRequest({
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    _ragDocuments = Array.isArray(body.documents)
+      ? body.documents
+      : [];
+
+    if (status) {
+      status.innerHTML =
+        '🟢 RAG service connected &nbsp;·&nbsp; ' +
+        '<strong>' +
+        _ragDocuments.length +
+        '</strong> indexed document' +
+        (_ragDocuments.length === 1 ? '' : 's');
+    }
+
+    if (count) {
+      count.textContent =
+        _ragDocuments.length +
+        ' document' +
+        (_ragDocuments.length === 1 ? '' : 's');
+    }
+
+    renderRagDocumentList();
+
+  } catch (error) {
+    console.error('RAG document load error:', error);
+
+    if (status) {
+      status.textContent =
+        '🔴 Unable to load RAG documents: ' +
+        error.message;
+    }
+
+    if (list) {
+      list.innerHTML =
+        '<div style="padding:20px;text-align:center;color:#ef4444">' +
+        ragEscape(error.message) +
+        '</div>';
+    }
+  }
+}
+
+function renderRagDocumentList() {
+  var list = document.getElementById('rag-document-list');
+
+  if (!list) return;
+
+  if (!_ragDocuments.length) {
+    list.innerHTML =
+      '<div style="padding:24px;text-align:center;color:var(--text3);border:1px dashed var(--border);border-radius:8px">' +
+      'No documents are currently indexed.' +
+      '</div>';
+    return;
+  }
+
+  list.innerHTML =
+    '<div style="overflow-x:auto">' +
+      '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+        '<thead>' +
+          '<tr style="text-align:left;border-bottom:1px solid var(--border)">' +
+            '<th style="padding:10px">Document</th>' +
+            '<th style="padding:10px">Pages</th>' +
+            '<th style="padding:10px">Chunks</th>' +
+            '<th style="padding:10px;text-align:right">Action</th>' +
+          '</tr>' +
+        '</thead>' +
+        '<tbody>' +
+
+        _ragDocuments.map(function(doc, index) {
+          return (
+            '<tr style="border-bottom:1px solid var(--border)">' +
+              '<td style="padding:12px;font-weight:600;color:var(--text)">' +
+                ragEscape(doc.document || '') +
+              '</td>' +
+              '<td style="padding:12px;color:var(--text2)">' +
+                ragEscape(doc.pages || 0) +
+              '</td>' +
+              '<td style="padding:12px;color:var(--text2)">' +
+                ragEscape(doc.chunks || 0) +
+              '</td>' +
+              '<td style="padding:12px;text-align:right">' +
+                '<button class="btn btn-ghost btn-sm" onclick="deleteRagDocument(' +
+                  index +
+                ')">Delete</button>' +
+              '</td>' +
+            '</tr>'
+          );
+        }).join('') +
+
+        '</tbody>' +
+      '</table>' +
+    '</div>';
+}
+
+async function uploadRagDocument() {
+  var fileInput =
+    document.getElementById('rag-file');
+
+  var message =
+    document.getElementById('rag-upload-message');
+
+  var button =
+    document.getElementById('rag-upload-button');
+
+  if (
+    !fileInput ||
+    !fileInput.files ||
+    !fileInput.files.length
+  ) {
+    if (message) {
+      message.textContent =
+        'Please select a PDF document.';
+    }
+    return;
+  }
+
+  var data = new FormData();
+
+  function addField(formKey, elementId) {
+    var element =
+      document.getElementById(elementId);
+
+    if (!element) return;
+
+    var value =
+      String(element.value || '').trim();
+
+    if (value) {
+      data.append(formKey, value);
+    }
+  }
+
+  data.append(
+    'file',
+    fileInput.files[0]
+  );
+
+  addField('company_name', 'rag-company-name');
+  addField('ticker', 'rag-ticker');
+  addField('exchange', 'rag-exchange');
+  addField('market', 'rag-market');
+  addField('country', 'rag-country');
+  addField('currency', 'rag-currency');
+  addField('report_type', 'rag-report-type');
+  addField('fiscal_year', 'rag-fiscal-year');
+  addField('fiscal_quarter', 'rag-fiscal-quarter');
+  addField('fiscal_half', 'rag-fiscal-half');
+  addField('period_start', 'rag-period-start');
+  addField('period_end', 'rag-period-end');
+  addField('publication_date', 'rag-publication-date');
+  addField('reporting_period', 'rag-reporting-period');
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Uploading...';
+  }
+
+  if (message) {
+    message.textContent =
+      'Uploading and ingesting document...';
+  }
+
+  try {
+    var result = await ragGatewayRequest({
+      method: 'POST',
+      body: data
+    });
+
+    if (message) {
+      message.textContent =
+        '✓ ' +
+        (result.document || fileInput.files[0].name) +
+        ' ingested successfully.';
+    }
+
+    var form =
+      document.getElementById('rag-upload-form');
+
+    if (form) {
+      form.reset();
+    }
+
+    await loadRagDocuments();
+
+    if (typeof toast === 'function') {
+      toast(
+        '✓ RAG document ingested successfully.',
+        'success'
+      );
+    }
+
+  } catch (error) {
+    console.error(
+      'RAG upload error:',
+      error
+    );
+
+    if (message) {
+      message.textContent =
+        'Upload failed: ' +
+        error.message;
+    }
+
+    if (typeof toast === 'function') {
+      toast(
+        'RAG upload failed: ' +
+        error.message,
+        'error'
+      );
+    }
+
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent =
+        '⬆ Upload & Ingest';
+    }
+  }
+}
+
+async function deleteRagDocument(index) {
+  var documentInfo =
+    _ragDocuments[index];
+
+  if (
+    !documentInfo ||
+    !documentInfo.document
+  ) {
+    return;
+  }
+
+  var documentName =
+    documentInfo.document;
+
+  if (
+    !window.confirm(
+      'Delete "' +
+      documentName +
+      '" from the RAG knowledge base?'
+    )
+  ) {
+    return;
+  }
+
+  try {
+    await ragGatewayRequest({
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        document: documentName
+      })
+    });
+
+    if (typeof toast === 'function') {
+      toast(
+        '✓ RAG document deleted.',
+        'success'
+      );
+    }
+
+    await loadRagDocuments();
+
+  } catch (error) {
+    console.error(
+      'RAG delete error:',
+      error
+    );
+
+    if (typeof toast === 'function') {
+      toast(
+        'Delete failed: ' +
+        error.message,
+        'error'
+      );
+    } else {
+      alert(
+        'Delete failed: ' +
+        error.message
+      );
+    }
+  }
+}
+
 
 // ══════════════════════════════════════════════════════════════════
 // FUNDAMENTALS PIPELINE — Admin Panel UI
