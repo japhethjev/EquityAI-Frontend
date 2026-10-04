@@ -12546,7 +12546,7 @@ function renderRagDocumentsPanel() {
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:24px">' +
         '<div>' +
           '<div style="font-size:22px;font-weight:700;color:var(--text);margin-bottom:6px">🧠 RAG Document Management</div>' +
-          '<div style="font-size:13px;color:var(--text3)">Upload company reports into the EquityAI knowledge base and manage currently indexed documents.</div>' +
+          '<div style="font-size:13px;color:var(--text3)">Upload company reports and manage their ingestion lifecycle in the EquityAI knowledge base.</div>' +
         '</div>' +
         '<button class="btn btn-ghost btn-sm" onclick="loadRagDocuments()">↻ Refresh</button>' +
       '</div>' +
@@ -12558,7 +12558,7 @@ function renderRagDocumentsPanel() {
       '<div style="background:var(--bg2);border-radius:12px;padding:20px;margin-bottom:24px">' +
 
         '<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:5px">Upload Company Report</div>' +
-        '<div style="font-size:12px;color:var(--text3);margin-bottom:18px">PDF reports are ingested, chunked and embedded into the EquityAI RAG knowledge base.</div>' +
+        '<div style="font-size:12px;color:var(--text3);margin-bottom:18px">PDF reports are processed asynchronously. You can leave this page while ingestion continues in the background.</div>' +
 
         '<form id="rag-upload-form">' +
 
@@ -12657,7 +12657,7 @@ function renderRagDocumentsPanel() {
           '</div>' +
 
           '<div style="display:flex;align-items:center;gap:12px;margin-top:18px">' +
-            '<button id="rag-upload-button" type="submit" class="btn btn-gold">⬆ Upload & Ingest</button>' +
+            '<button id="rag-upload-button" type="submit" class="btn btn-gold">⬆ Upload for Ingestion</button>' +
             '<span id="rag-upload-message" style="font-size:12px;color:var(--text3)"></span>' +
           '</div>' +
 
@@ -12669,7 +12669,7 @@ function renderRagDocumentsPanel() {
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
           '<div>' +
             '<div style="font-size:15px;font-weight:700;color:var(--text)">Knowledge Base Documents</div>' +
-            '<div style="font-size:12px;color:var(--text3);margin-top:3px">Documents currently available to EquityAI RAG.</div>' +
+            '<div style="font-size:12px;color:var(--text3);margin-top:3px">Track registered reports, ingestion progress and research availability.</div>' +
           '</div>' +
           '<span id="rag-document-count" style="font-size:12px;color:var(--text3)">0 documents</span>' +
         '</div>' +
@@ -12757,6 +12757,87 @@ async function ragGatewayRequest(options) {
   return body;
 }
 
+var _ragPollTimer = null;
+
+function ragDocumentStatus(doc) {
+  return String(doc && doc.status ? doc.status : '').toLowerCase();
+}
+
+function ragHasActiveIngestion() {
+  return _ragDocuments.some(function(doc) {
+    var status = ragDocumentStatus(doc);
+    return status === 'queued' || status === 'processing';
+  });
+}
+
+function stopRagDocumentPolling() {
+  if (_ragPollTimer) {
+    clearTimeout(_ragPollTimer);
+    _ragPollTimer = null;
+  }
+}
+
+function scheduleRagDocumentPolling() {
+  stopRagDocumentPolling();
+
+  if (!ragHasActiveIngestion()) {
+    return;
+  }
+
+  _ragPollTimer = setTimeout(function() {
+    _ragPollTimer = null;
+
+    if (!document.getElementById('rag-document-list')) {
+      return;
+    }
+
+    loadRagDocuments();
+  }, 10000);
+}
+
+function ragProgressText(doc) {
+  var status = ragDocumentStatus(doc);
+  var processed = Number(doc.processed_pages || 0);
+  var total = doc.total_pages == null
+    ? null
+    : Number(doc.total_pages);
+
+  if (status === 'queued') {
+    return 'Waiting for ingestion worker';
+  }
+
+  if (status === 'processing') {
+    return total > 0
+      ? processed + ' / ' + total + ' pages'
+      : processed + ' pages processed';
+  }
+
+  if (status === 'completed') {
+    return total > 0
+      ? processed + ' / ' + total + ' pages'
+      : processed + ' pages';
+  }
+
+  if (status === 'failed') {
+    return total > 0
+      ? processed + ' / ' + total + ' pages before failure'
+      : processed + ' pages before failure';
+  }
+
+  return processed + ' pages';
+}
+
+function ragStatusLabel(doc) {
+  var status = ragDocumentStatus(doc);
+
+  if (status === 'queued') return 'Queued';
+  if (status === 'processing') return 'Processing';
+  if (status === 'completed') return 'Completed';
+  if (status === 'failed') return 'Failed';
+
+  return status || 'Unknown';
+}
+
 async function loadRagDocuments() {
   var status = document.getElementById('rag-status');
   var list = document.getElementById('rag-document-list');
@@ -12778,13 +12859,26 @@ async function loadRagDocuments() {
       ? body.documents
       : [];
 
+    var completedCount = _ragDocuments.filter(function(doc) {
+      return ragDocumentStatus(doc) === 'completed';
+    }).length;
+
+    var activeCount = _ragDocuments.filter(function(doc) {
+      var docStatus = ragDocumentStatus(doc);
+      return docStatus === 'queued' || docStatus === 'processing';
+    }).length;
+
     if (status) {
       status.innerHTML =
         '🟢 RAG service connected &nbsp;·&nbsp; ' +
         '<strong>' +
-        _ragDocuments.length +
-        '</strong> indexed document' +
-        (_ragDocuments.length === 1 ? '' : 's');
+        completedCount +
+        '</strong> available for research' +
+        (activeCount
+          ? ' &nbsp;·&nbsp; <strong>' +
+            activeCount +
+            '</strong> ingesting'
+          : '');
     }
 
     if (count) {
@@ -12795,8 +12889,10 @@ async function loadRagDocuments() {
     }
 
     renderRagDocumentList();
+    scheduleRagDocumentPolling();
 
   } catch (error) {
+    stopRagDocumentPolling();
     console.error('RAG document load error:', error);
 
     if (status) {
@@ -12822,7 +12918,7 @@ function renderRagDocumentList() {
   if (!_ragDocuments.length) {
     list.innerHTML =
       '<div style="padding:24px;text-align:center;color:var(--text3);border:1px dashed var(--border);border-radius:8px">' +
-      'No documents are currently indexed.' +
+      'No documents are currently registered.' +
       '</div>';
     return;
   }
@@ -12833,24 +12929,65 @@ function renderRagDocumentList() {
         '<thead>' +
           '<tr style="text-align:left;border-bottom:1px solid var(--border)">' +
             '<th style="padding:10px">Document</th>' +
-            '<th style="padding:10px">Pages</th>' +
+            '<th style="padding:10px">Status</th>' +
+            '<th style="padding:10px">Progress</th>' +
             '<th style="padding:10px">Chunks</th>' +
+            '<th style="padding:10px">Research</th>' +
             '<th style="padding:10px;text-align:right">Action</th>' +
           '</tr>' +
         '</thead>' +
         '<tbody>' +
 
         _ragDocuments.map(function(doc, index) {
+          var docStatus = ragDocumentStatus(doc);
+          var completed = docStatus === 'completed';
+
+          var processedChunks =
+            Number(doc.processed_chunks || 0);
+
+          var chunks =
+            doc.total_chunks != null
+              ? processedChunks +
+                ' / ' +
+                Number(doc.total_chunks)
+              : String(processedChunks);
+
+          var researchState =
+            completed
+              ? 'Available'
+              : docStatus === 'failed'
+                ? 'Unavailable'
+                : 'Not yet available';
+
+          var failureDetail =
+            docStatus === 'failed' && doc.error_message
+              ? '<div style="font-size:11px;color:#ef4444;margin-top:4px">' +
+                ragEscape(doc.error_message) +
+                '</div>'
+              : '';
+
           return (
             '<tr style="border-bottom:1px solid var(--border)">' +
-              '<td style="padding:12px;font-weight:600;color:var(--text)">' +
-                ragEscape(doc.document || '') +
+              '<td style="padding:12px">' +
+                '<div style="font-weight:600;color:var(--text)">' +
+                  ragEscape(doc.document || '') +
+                '</div>' +
+                '<div style="font-size:11px;color:var(--text3);margin-top:3px">' +
+                  ragEscape(doc.company_name || '') +
+                '</div>' +
+                failureDetail +
+              '</td>' +
+              '<td style="padding:12px;color:var(--text2);font-weight:600">' +
+                ragEscape(ragStatusLabel(doc)) +
               '</td>' +
               '<td style="padding:12px;color:var(--text2)">' +
-                ragEscape(doc.pages || 0) +
+                ragEscape(ragProgressText(doc)) +
               '</td>' +
               '<td style="padding:12px;color:var(--text2)">' +
-                ragEscape(doc.chunks || 0) +
+                ragEscape(chunks) +
+              '</td>' +
+              '<td style="padding:12px;color:var(--text2)">' +
+                ragEscape(researchState) +
               '</td>' +
               '<td style="padding:12px;text-align:right">' +
                 '<button class="btn btn-ghost dark btn-sm" onclick="deleteRagDocument(' +
@@ -12931,7 +13068,7 @@ async function uploadRagDocument() {
 
   if (message) {
     message.textContent =
-      'Uploading and ingesting document...';
+      'Uploading report for ingestion...';
   }
 
   try {
@@ -12944,7 +13081,7 @@ async function uploadRagDocument() {
       message.textContent =
         '✓ ' +
         (result.document || fileInput.files[0].name) +
-        ' ingested successfully.';
+        ' accepted and queued for ingestion.';
     }
 
     var form =
@@ -12958,7 +13095,7 @@ async function uploadRagDocument() {
 
     if (typeof toast === 'function') {
       toast(
-        '✓ RAG document ingested successfully.',
+        '✓ RAG document accepted and queued for ingestion.',
         'success'
       );
     }
@@ -12987,7 +13124,7 @@ async function uploadRagDocument() {
     if (button) {
       button.disabled = false;
       button.textContent =
-        '⬆ Upload & Ingest';
+        '⬆ Upload for Ingestion';
     }
   }
 }
