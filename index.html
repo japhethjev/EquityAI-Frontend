@@ -13025,9 +13025,22 @@ async function uploadRagDocument() {
     return;
   }
 
-  var data = new FormData();
+  var file = fileInput.files[0];
 
-  function addField(formKey, elementId) {
+  if (
+    !file.name ||
+    !file.name.toLowerCase().endsWith('.pdf')
+  ) {
+    if (message) {
+      message.textContent =
+        'Please select a PDF document.';
+    }
+    return;
+  }
+
+  var metadata = {};
+
+  function addField(key, elementId) {
     var element =
       document.getElementById(elementId);
 
@@ -13037,14 +13050,9 @@ async function uploadRagDocument() {
       String(element.value || '').trim();
 
     if (value) {
-      data.append(formKey, value);
+      metadata[key] = value;
     }
   }
-
-  data.append(
-    'file',
-    fileInput.files[0]
-  );
 
   addField('company_name', 'rag-company-name');
   addField('ticker', 'rag-ticker');
@@ -13063,24 +13071,114 @@ async function uploadRagDocument() {
 
   if (button) {
     button.disabled = true;
-    button.textContent = 'Uploading...';
+    button.textContent = 'Preparing upload...';
   }
 
   if (message) {
     message.textContent =
-      'Uploading report for ingestion...';
+      'Preparing secure document upload...';
   }
 
   try {
+    /*
+     * Phase 1:
+     * Obtain a short-lived presigned S3 PUT URL through the
+     * authenticated admin gateway. No PDF bytes pass through
+     * the Netlify function.
+     */
+    var uploadTarget = await ragGatewayRequest({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        action: 'upload_url',
+        filename: file.name
+      })
+    });
+
+    if (
+      !uploadTarget ||
+      !uploadTarget.upload_id ||
+      !uploadTarget.upload_url
+    ) {
+      throw new Error(
+        'The RAG service did not return a valid upload target.'
+      );
+    }
+
+    if (button) {
+      button.textContent = 'Uploading PDF...';
+    }
+
+    if (message) {
+      message.textContent =
+        'Uploading PDF securely to document storage...';
+    }
+
+    /*
+     * Phase 2:
+     * Upload the PDF directly from the administrator's browser
+     * to S3. The Content-Type must match the signed request.
+     */
+    var s3Response = await fetch(
+      uploadTarget.upload_url,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/pdf'
+        },
+        body: file
+      }
+    );
+
+    if (!s3Response.ok) {
+      throw new Error(
+        'Secure document upload failed with HTTP ' +
+        s3Response.status +
+        '.'
+      );
+    }
+
+    if (button) {
+      button.textContent = 'Queueing ingestion...';
+    }
+
+    if (message) {
+      message.textContent =
+        'Upload complete. Queueing document for ingestion...';
+    }
+
+    /*
+     * Phase 3:
+     * Confirm the staged object and metadata. The backend then
+     * places a lightweight intake job onto the durable queue.
+     */
+    var confirmation =
+      Object.assign(
+        {},
+        metadata,
+        {
+          action: 'upload_confirm',
+          upload_id: uploadTarget.upload_id,
+          filename: uploadTarget.filename || file.name
+        }
+      );
+
     var result = await ragGatewayRequest({
       method: 'POST',
-      body: data
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(confirmation)
     });
 
     if (message) {
       message.textContent =
         '✓ ' +
-        (result.document || fileInput.files[0].name) +
+        (result.filename ||
+          uploadTarget.filename ||
+          file.name) +
         ' accepted and queued for ingestion.';
     }
 

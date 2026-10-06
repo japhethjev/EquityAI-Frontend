@@ -195,58 +195,141 @@ exports.handler = async function (event) {
       );
     }
 
-    /*
-     * ------------------------------------------------------
-     * POST — upload financial report
-     * ------------------------------------------------------
-     */
-    if (event.httpMethod === "POST") {
-      const contentType =
-        event.headers["content-type"] ||
-        event.headers["Content-Type"];
+      /*
+       * ------------------------------------------------------
+       * POST — direct-to-S3 document intake control plane
+       * ------------------------------------------------------
+       */
+      if (event.httpMethod === "POST") {
+        const contentType =
+          event.headers["content-type"] ||
+          event.headers["Content-Type"] ||
+          "";
 
-      if (
-        !contentType ||
-        !contentType
-          .toLowerCase()
-          .startsWith("multipart/form-data")
-      ) {
+        if (!contentType.toLowerCase().startsWith("application/json")) {
+          return jsonResponse(400, {
+            detail: "RAG document control requests require application/json.",
+          });
+        }
+
+        let payload = {};
+
+        try {
+          payload = JSON.parse(event.body || "{}");
+        } catch {
+          return jsonResponse(400, {
+            detail: "Invalid JSON request.",
+          });
+        }
+
+        const action =
+          typeof payload.action === "string"
+            ? payload.action.trim()
+            : "";
+
+        if (action === "upload_url") {
+          const filename =
+            typeof payload.filename === "string"
+              ? payload.filename.trim()
+              : "";
+
+          if (!filename) {
+            return jsonResponse(400, {
+              detail: "PDF filename is required.",
+            });
+          }
+
+          const response = await fetch(
+            `${API_BASE}/documents/upload-url`,
+            {
+              method: "POST",
+              headers: {
+                "X-API-Key": apiKey,
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+              body: JSON.stringify({ filename }),
+            }
+          );
+
+          const body =
+            await parseBackendResponse(response);
+
+          return jsonResponse(response.status, body);
+        }
+
+        if (action === "upload_confirm") {
+          const uploadId =
+            typeof payload.upload_id === "string"
+              ? payload.upload_id.trim()
+              : "";
+
+          const filename =
+            typeof payload.filename === "string"
+              ? payload.filename.trim()
+              : "";
+
+          if (!uploadId || !filename) {
+            return jsonResponse(400, {
+              detail: "Upload ID and PDF filename are required.",
+            });
+          }
+
+          const confirmation = {
+            upload_id: uploadId,
+            filename,
+          };
+
+          [
+            "company_name",
+            "ticker",
+            "exchange",
+            "market",
+            "country",
+            "currency",
+            "report_type",
+            "fiscal_year",
+            "fiscal_quarter",
+            "fiscal_half",
+            "period_start",
+            "period_end",
+            "publication_date",
+            "reporting_period",
+          ].forEach(function (key) {
+            if (
+              payload[key] !== undefined &&
+              payload[key] !== null &&
+              String(payload[key]).trim() !== ""
+            ) {
+              confirmation[key] =
+                String(payload[key]).trim();
+            }
+          });
+
+          const response = await fetch(
+            `${API_BASE}/documents/upload-confirm`,
+            {
+              method: "POST",
+              headers: {
+                "X-API-Key": apiKey,
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+              body: JSON.stringify(confirmation),
+            }
+          );
+
+          const body =
+            await parseBackendResponse(response);
+
+          return jsonResponse(response.status, body);
+        }
+
         return jsonResponse(400, {
-          detail:
-            "Document upload requires multipart/form-data.",
+          detail: "Unsupported RAG document upload action.",
         });
       }
 
-      const bodyBuffer = event.isBase64Encoded
-        ? Buffer.from(
-            event.body || "",
-            "base64"
-          )
-        : Buffer.from(
-            event.body || "",
-            "utf8"
-          );
-
-      const response = await fetch(
-        `${API_BASE}/documents/upload`,
-        {
-          method: "POST",
-          headers: {
-            "X-API-Key": apiKey,
-            "Content-Type": contentType,
-          },
-          body: bodyBuffer,
-        }
-      );
-
-      const body =
-        await parseBackendResponse(response);
-
-      return jsonResponse(
-        response.status,
-        body
-      );
-    }
 
     /*
      * ------------------------------------------------------
